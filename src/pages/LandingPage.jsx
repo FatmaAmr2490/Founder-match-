@@ -260,8 +260,8 @@ const LandingPage = () => {
                 <Users className="h-6 w-6 text-red-500 mr-2" />
                 <span className="text-xl font-bold">FounderMatch</span>
               </div>
-              <p className="text-gray-400">
-                Connecting visionary entrepreneurs to build the next generation of startups.
+              <p className="text-gray-400 whitespace-nowrap">
+                Connecting entrepreneurs to build startups.
               </p>
               <div className="mt-4 flex items-center">
                 <Mail className="h-4 w-4 text-red-500 mr-2" />
@@ -270,9 +270,9 @@ const LandingPage = () => {
                 </a>
               </div>
             </div>
-            <div>
+            <div className="flex flex-col items-center">
               <span className="text-lg font-semibold mb-4 block">Legal</span>
-              <div className="flex flex-col space-y-2">
+              <div className="flex flex-col space-y-2 items-center">
                 <a href="mailto:foundermatch13@gmail.com" className="text-gray-400 hover:text-white cursor-pointer transition-colors">Contact</a>
                 <Link to="/privacy-policy" className="text-gray-400 hover:text-white cursor-pointer transition-colors">Privacy Policy</Link>
                 <Link to="/terms-of-service" className="text-gray-400 hover:text-white cursor-pointer transition-colors">Terms of Service</Link>
