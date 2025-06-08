@@ -1,9 +1,9 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Users, Target, MessageCircle, ArrowRight, Star, CheckCircle, LogIn, UserPlus, Shield } from 'lucide-react';
+import { Users, Target, MessageCircle, ArrowRight, Star, CheckCircle, LogIn, UserPlus, Shield, Mail } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 const LandingPage = () => {
@@ -60,7 +60,7 @@ const LandingPage = () => {
           
           {currentUser ? (
             <>
-              {isAdmin || (currentUser && currentUser.email === 'admin@foundermatch.com') ? (
+              {isAdmin ? (
                 <Button 
                   variant="ghost" 
                   onClick={() => navigate('/admin')}
@@ -88,7 +88,7 @@ const LandingPage = () => {
             <>
               <Button 
                 variant="ghost" 
-                onClick={() => navigate('/signup')} 
+                onClick={() => navigate('/login')}
                 className="text-gray-600 hover:text-red-600"
               >
                 <LogIn className="h-4 w-4 mr-2" /> Login
@@ -263,21 +263,27 @@ const LandingPage = () => {
               <p className="text-gray-400">
                 Connecting visionary entrepreneurs to build the next generation of startups.
               </p>
+              <div className="mt-4 flex items-center">
+                <Mail className="h-4 w-4 text-red-500 mr-2" />
+                <a href="mailto:foundermatch13@gmail.com" className="text-gray-400 hover:text-white transition-colors">
+                  foundermatch13@gmail.com
+                </a>
+              </div>
             </div>
             <div>
               <span className="text-lg font-semibold mb-4 block">Quick Links</span>
-              <div className="space-y-2">
-                <p className="text-gray-400 hover:text-white cursor-pointer transition-colors">About Us</p>
-                <p className="text-gray-400 hover:text-white cursor-pointer transition-colors">How It Works</p>
+              <div className="flex flex-col space-y-2">
+                <Link to="/#about" onClick={() => document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' })} className="text-gray-400 hover:text-white cursor-pointer transition-colors">About Us</Link>
+                <Link to="/#how-it-works" onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })} className="text-gray-400 hover:text-white cursor-pointer transition-colors">How It Works</Link>
                 <p className="text-gray-400 hover:text-white cursor-pointer transition-colors">Success Stories</p>
               </div>
             </div>
             <div>
               <span className="text-lg font-semibold mb-4 block">Legal</span>
-              <div className="space-y-2">
-                <p className="text-gray-400 hover:text-white cursor-pointer transition-colors">Contact</p>
-                <p className="text-gray-400 hover:text-white cursor-pointer transition-colors">Privacy Policy</p>
-                <p className="text-gray-400 hover:text-white cursor-pointer transition-colors">Terms of Service</p>
+              <div className="flex flex-col space-y-2">
+                <a href="mailto:foundermatch13@gmail.com" className="text-gray-400 hover:text-white cursor-pointer transition-colors">Contact</a>
+                <Link to="/privacy-policy" className="text-gray-400 hover:text-white cursor-pointer transition-colors">Privacy Policy</Link>
+                <Link to="/terms-of-service" className="text-gray-400 hover:text-white cursor-pointer transition-colors">Terms of Service</Link>
               </div>
             </div>
           </div>

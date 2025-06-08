@@ -1,28 +1,30 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
-import { Users, ArrowLeft, CheckCircle } from 'lucide-react';
+import { Users, ArrowLeft, CheckCircle, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 const SignupPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { login } = useAuth();
+  const { signup } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    password: '',
     university: '',
     skills: '',
     interests: '',
     availability: '',
     bio: ''
   });
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -35,40 +37,46 @@ const SignupPage = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.email || !formData.skills) {
+    if (!formData.name || !formData.email || !formData.password || !formData.skills) {
       toast({
         title: "Missing Information",
-        description: "Please fill in all required fields (Name, Email, Skills).",
+        description: "Please fill in all required fields (Name, Email, Password, Skills).",
         variant: "destructive"
       });
       return;
     }
 
-    const users = JSON.parse(localStorage.getItem('founderMatchUsers') || '[]');
-    const newUser = {
-      id: Date.now().toString(), // Ensure ID is a string for consistency if needed
-      ...formData,
-      createdAt: new Date().toISOString()
-    };
-    users.push(newUser);
-    localStorage.setItem('founderMatchUsers', JSON.stringify(users));
-    
-    // Determine if admin based on email
-    const isAdminUser = newUser.email === 'admin@foundermatch.com';
-    login(newUser, isAdminUser); // Pass isAdmin status to login
+    if (formData.password.length < 6) {
+      toast({
+        title: "Password Too Short",
+        description: "Password must be at least 6 characters long.",
+        variant: "destructive"
+      });
+      return;
+    }
 
-    toast({
-      title: "Profile Created!",
-      description: "Welcome to FounderMatch! Let's find your co-founder.",
-    });
+    const { success, isAdmin } = signup(formData);
 
-    setTimeout(() => {
-      if (isAdminUser) {
-        navigate('/admin');
-      } else {
-        navigate('/dashboard');
-      }
-    }, 1500);
+    if (success) {
+      toast({
+        title: "Profile Created!",
+        description: "Welcome to FounderMatch! Let's find your co-founder.",
+      });
+
+      setTimeout(() => {
+        if (isAdmin) {
+          navigate('/admin');
+        } else {
+          navigate('/dashboard');
+        }
+      }, 1500);
+    } else {
+      toast({
+        title: "Signup Failed",
+        description: "Could not create your profile. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -106,8 +114,7 @@ const SignupPage = () => {
                 Create Your Profile
               </CardTitle>
               <p className="text-gray-600 text-lg">
-                Tell us about yourself to find the perfect co-founder match. <br/>
-                (Use <code className="bg-gray-200 px-1 rounded">admin@foundermatch.com</code> to access Admin panel)
+                Join FounderMatch and start connecting.
               </p>
             </CardHeader>
             
@@ -146,6 +153,29 @@ const SignupPage = () => {
                   </div>
                 </div>
 
+                <div className="space-y-2 relative">
+                  <Label htmlFor="password">Password *</Label>
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    placeholder="Create a strong password (min. 6 characters)"
+                    className="h-12 border-2 focus:border-red-500 pr-10"
+                    required
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-2 top-8 h-7 w-7 text-gray-500 hover:text-red-500"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="university" className="text-sm font-semibold">
                     University/Education
@@ -169,7 +199,7 @@ const SignupPage = () => {
                     name="skills"
                     value={formData.skills}
                     onChange={handleInputChange}
-                    placeholder="e.g., Software Development, Marketing, Finance, Design"
+                    placeholder="e.g., Software Development, Marketing, Finance"
                     className="h-12 border-2 focus:border-red-500"
                     required
                   />
@@ -184,7 +214,7 @@ const SignupPage = () => {
                     name="interests"
                     value={formData.interests}
                     onChange={handleInputChange}
-                    placeholder="e.g., FinTech, HealthTech, AI, E-commerce, SaaS"
+                    placeholder="e.g., FinTech, HealthTech, AI, E-commerce"
                     className="h-12 border-2 focus:border-red-500"
                   />
                 </div>
@@ -198,7 +228,7 @@ const SignupPage = () => {
                     name="availability"
                     value={formData.availability}
                     onChange={handleInputChange}
-                    placeholder="e.g., Full-time, Part-time, Weekends only"
+                    placeholder="e.g., Full-time, Part-time"
                     className="h-12 border-2 focus:border-red-500"
                   />
                 </div>
@@ -212,7 +242,7 @@ const SignupPage = () => {
                     name="bio"
                     value={formData.bio}
                     onChange={handleInputChange}
-                    placeholder="Tell us about your entrepreneurial journey, what you're passionate about, and what kind of co-founder you're looking for..."
+                    placeholder="Tell us about your entrepreneurial journey..."
                     className="min-h-[120px] border-2 focus:border-red-500"
                   />
                 </div>
@@ -226,10 +256,16 @@ const SignupPage = () => {
                     className="w-full h-12 gradient-bg text-white font-semibold text-lg rounded-lg hover:shadow-xl transition-all duration-300"
                   >
                     <CheckCircle className="mr-2 h-5 w-5" />
-                    Create Profile & Login
+                    Create Profile
                   </Button>
                 </motion.div>
               </form>
+              <p className="text-center text-sm text-gray-600">
+                Already have an account?{' '}
+                <Link to="/login" className="font-semibold text-red-600 hover:underline">
+                  Log In
+                </Link>
+              </p>
             </CardContent>
           </Card>
         </motion.div>
