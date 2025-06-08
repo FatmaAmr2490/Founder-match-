@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { Users, ArrowLeft, LogIn, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -18,7 +17,7 @@ const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     if (!email || !password) {
       toast({
@@ -29,7 +28,7 @@ const LoginPage = () => {
       return;
     }
 
-    const result = await login(email, password);
+    const result = login(email, password);
 
     if (result.success) {
       toast({
@@ -49,44 +48,6 @@ const LoginPage = () => {
         description: result.message || "Invalid credentials. Please try again.",
         variant: "destructive"
       });
-
-      // If the error is about email verification, show a resend verification button
-      if (result.message?.includes('verify your email')) {
-        toast({
-          title: "Email Not Verified",
-          description: (
-            <div className="space-y-2">
-              <p>Please check your email for the verification link.</p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={async () => {
-                  const { error } = await supabase.auth.resend({
-                    type: 'signup',
-                    email: email,
-                  });
-                  if (error) {
-                    toast({
-                      title: "Error",
-                      description: "Failed to resend verification email. Please try again.",
-                      variant: "destructive"
-                    });
-                  } else {
-                    toast({
-                      title: "Verification Email Sent",
-                      description: "Please check your inbox for the verification link.",
-                    });
-                  }
-                }}
-              >
-                Resend Verification Email
-              </Button>
-            </div>
-          ),
-          duration: 10000,
-        });
-      }
     }
   };
 

@@ -254,7 +254,7 @@ const LandingPage = () => {
 
       <footer className="bg-gray-900 text-white py-12">
         <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-2 gap-8">
+          <div className="grid md:grid-cols-3 gap-8">
             <div>
               <div className="flex items-center mb-4">
                 <Users className="h-6 w-6 text-red-500 mr-2" />
@@ -268,6 +268,14 @@ const LandingPage = () => {
                 <a href="mailto:foundermatch13@gmail.com" className="text-gray-400 hover:text-white transition-colors">
                   foundermatch13@gmail.com
                 </a>
+              </div>
+            </div>
+            <div>
+              <span className="text-lg font-semibold mb-4 block">Quick Links</span>
+              <div className="flex flex-col space-y-2">
+                <Link to="/#about" onClick={() => document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' })} className="text-gray-400 hover:text-white cursor-pointer transition-colors">About Us</Link>
+                <Link to="/#how-it-works" onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })} className="text-gray-400 hover:text-white cursor-pointer transition-colors">How It Works</Link>
+                <p className="text-gray-400 hover:text-white cursor-pointer transition-colors">Success Stories</p>
               </div>
             </div>
             <div>
