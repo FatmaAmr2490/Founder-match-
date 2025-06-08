@@ -254,7 +254,7 @@ const LandingPage = () => {
 
       <footer className="bg-gray-900 text-white py-12">
         <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-2 gap-8">
+          <div className="grid md:grid-cols-3 gap-8">
             <div>
               <div className="flex items-center mb-4">
                 <Users className="h-6 w-6 text-red-500 mr-2" />
@@ -278,10 +278,12 @@ const LandingPage = () => {
                 <Link to="/terms-of-service" className="text-gray-400 hover:text-white cursor-pointer transition-colors">Terms of Service</Link>
               </div>
             </div>
+            <div className="flex items-center">
+              <p className="text-gray-400 italic">"Every world-changing idea begins with two minds that were meant to meet"</p>
+            </div>
           </div>
-          <div className="border-t border-gray-800 mt-8 pt-8">
-            <p className="text-gray-400 text-right italic mb-4">"Every world-changing idea begins with two minds that were meant to meet"</p>
-            <p className="text-gray-400 text-center">© {new Date().getFullYear()} FounderMatch. All rights reserved.</p>
+          <div className="border-t border-gray-800 mt-8 pt-8 text-center">
+            <p className="text-gray-400">© {new Date().getFullYear()} FounderMatch. All rights reserved.</p>
           </div>
         </div>
       </footer>
