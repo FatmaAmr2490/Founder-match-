@@ -260,8 +260,8 @@ const LandingPage = () => {
                 <Users className="h-6 w-6 text-red-500 mr-2" />
                 <span className="text-xl font-bold">FounderMatch</span>
               </div>
-              <p className="text-gray-400 whitespace-nowrap">
-                Connecting entrepreneurs to build startups.
+              <p className="text-gray-400">
+                Connecting visionary entrepreneurs to build the next generation of startups.
               </p>
               <div className="mt-4 flex items-center">
                 <Mail className="h-4 w-4 text-red-500 mr-2" />
