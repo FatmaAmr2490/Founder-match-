@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -8,31 +7,84 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from '@/components/ui/use-toast';
 import { Users, MessageCircle, User, Mail, GraduationCap, Briefcase, Heart, Clock, ArrowLeft, LogOut, MessageSquare as ChatIcon } from 'lucide-react'; // Added ChatIcon
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 
 const DashboardPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { currentUser, logout, loading } = useAuth();
   const [matches, setMatches] = useState([]);
+  const [potentialMatches, setPotentialMatches] = useState([]);
 
   useEffect(() => {
-    if (loading) return; 
-
+    if (loading) return;
     if (!currentUser) {
       navigate('/signup');
       return;
     }
-
-    const allUsers = JSON.parse(localStorage.getItem('founderMatchUsers') || '[]');
-    const otherUsers = allUsers.filter(u => u.id !== currentUser.id && u.name && u.skills && u.interests);
-    
-    const userMatches = otherUsers.map(otherUser => ({
-      ...otherUser,
-      matchScore: calculateMatchScore(currentUser, otherUser)
-    })).sort((a, b) => b.matchScore - a.matchScore).slice(0, 6);
-
-    setMatches(userMatches);
+    fetchMatches();
+    fetchPotentialMatches();
   }, [navigate, currentUser, loading]);
+
+  const fetchMatches = async () => {
+    try {
+      const { data: matchesData, error: matchesError } = await supabase
+        .from('matches')
+        .select(`
+          *,
+          user1:profiles!matches_user1_id_fkey(*),
+          user2:profiles!matches_user2_id_fkey(*)
+        `)
+        .or(`user1_id.eq.${currentUser.id},user2_id.eq.${currentUser.id}`)
+        .eq('status', 'accepted');
+
+      if (matchesError) throw matchesError;
+
+      setMatches(matchesData.map(match => ({
+        ...match,
+        otherUser: match.user1_id === currentUser.id ? match.user2 : match.user1
+      })));
+    } catch (error) {
+      console.error('Error fetching matches:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load matches. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const fetchPotentialMatches = async () => {
+    try {
+      // Fetch all profiles except current user
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('*')
+        .neq('id', currentUser.id);
+
+      if (profilesError) throw profilesError;
+
+      // Calculate match scores
+      const scoredProfiles = profiles.map(profile => ({
+        ...profile,
+        matchScore: calculateMatchScore(currentUser, profile)
+      }));
+
+      // Sort by match score and take top 6
+      const topMatches = scoredProfiles
+        .sort((a, b) => b.matchScore - a.matchScore)
+        .slice(0, 6);
+
+      setPotentialMatches(topMatches);
+    } catch (error) {
+      console.error('Error fetching potential matches:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load potential matches. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
 
   const calculateMatchScore = (user1, user2) => {
     let score = 0;
@@ -41,47 +93,90 @@ const DashboardPage = () => {
     if (!user1.skills || !user2.skills) return 0;
     if (!user1.interests || !user2.interests) return 0;
 
-    const user1Skills = user1.skills.toLowerCase().split(',').map(s => s.trim()).filter(s => s);
-    const user2Skills = user2.skills.toLowerCase().split(',').map(s => s.trim()).filter(s => s);
-    
-    const user1Interests = user1.interests.toLowerCase().split(',').map(s => s.trim()).filter(s => s);
-    const user2Interests = user2.interests.toLowerCase().split(',').map(s => s.trim()).filter(s => s);
+    // Convert arrays to lowercase for comparison
+    const user1Skills = Array.isArray(user1.skills) 
+      ? user1.skills.map(s => s.toLowerCase())
+      : user1.skills.toLowerCase().split(',').map(s => s.trim());
 
-    if (user1Skills.length === 0 || user1Interests.length === 0) return 0;
+    const user2Skills = Array.isArray(user2.skills)
+      ? user2.skills.map(s => s.toLowerCase())
+      : user2.skills.toLowerCase().split(',').map(s => s.trim());
 
+    const user1Interests = Array.isArray(user1.interests)
+      ? user1.interests.map(i => i.toLowerCase())
+      : user1.interests.toLowerCase().split(',').map(i => i.trim());
+
+    const user2Interests = Array.isArray(user2.interests)
+      ? user2.interests.map(i => i.toLowerCase())
+      : user2.interests.toLowerCase().split(',').map(i => i.trim());
+
+    // Calculate shared interests score
     const sharedInterests = user1Interests.filter(interest => 
-      user2Interests.some(otherInterest => otherInterest.includes(interest) || interest.includes(otherInterest))
+      user2Interests.some(otherInterest => 
+        otherInterest.includes(interest) || interest.includes(otherInterest)
+      )
     );
     score += sharedInterests.length * 25;
 
+    // Calculate complementary skills score
     const user1UniqueSkills = user1Skills.filter(skill => !user2Skills.includes(skill));
     const user2UniqueSkills = user2Skills.filter(skill => !user1Skills.includes(skill));
     
     if (user1UniqueSkills.length > 0 && user2UniqueSkills.length > 0) {
-        score += 35;
+      score += 35;
     } else if (user1UniqueSkills.length > 0 || user2UniqueSkills.length > 0) {
-        score += 15;
+      score += 15;
     }
 
     return Math.min(100, Math.max(0, Math.round(score)));
   };
 
-  const handleInitiateChat = (matchUser) => {
-    if (!currentUser) return;
-    
-    const storedChats = JSON.parse(localStorage.getItem(`founderMatchChats_${currentUser.id}`) || '{}');
-    
-    if (!storedChats[matchUser.id]) {
-      storedChats[matchUser.id] = []; 
-      localStorage.setItem(`founderMatchChats_${currentUser.id}`, JSON.stringify(storedChats));
-    }
+  const handleInitiateChat = async (matchUser) => {
+    try {
+      // First check if a match already exists
+      const { data: existingMatch, error: matchCheckError } = await supabase
+        .from('matches')
+        .select('id')
+        .or(`and(user1_id.eq.${currentUser.id},user2_id.eq.${matchUser.id}),and(user1_id.eq.${matchUser.id},user2_id.eq.${currentUser.id})`)
+        .single();
 
-    navigate('/chat', { state: { selectedUserId: matchUser.id } });
-    
-    toast({
-      title: "Chat Started!",
-      description: `You can now message ${matchUser.name} in the Chats tab.`,
-    });
+      if (matchCheckError && matchCheckError.code !== 'PGRST116') throw matchCheckError;
+
+      let matchId;
+      if (!existingMatch) {
+        // Create new match
+        const { data: newMatch, error: createError } = await supabase
+          .from('matches')
+          .insert({
+            user1_id: currentUser.id,
+            user2_id: matchUser.id,
+            match_score: calculateMatchScore(currentUser, matchUser),
+            status: 'pending'
+          })
+          .select()
+          .single();
+
+        if (createError) throw createError;
+        matchId = newMatch.id;
+      } else {
+        matchId = existingMatch.id;
+      }
+
+      // Navigate to chat
+      navigate('/chat', { state: { matchId } });
+      
+      toast({
+        title: "Chat Started!",
+        description: `You can now message ${matchUser.full_name} in the Chats tab.`,
+      });
+    } catch (error) {
+      console.error('Error initiating chat:', error);
+      toast({
+        title: "Error",
+        description: "Failed to start chat. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   if (loading || !currentUser) {
@@ -195,7 +290,7 @@ const DashboardPage = () => {
               Your Matches
             </h2>
             
-            {matches.length === 0 ? (
+            {potentialMatches.length === 0 ? (
               <Card className="text-center py-12">
                 <CardContent>
                   <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
@@ -208,7 +303,7 @@ const DashboardPage = () => {
               </Card>
             ) : (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {matches.map((match, index) => (
+                {potentialMatches.map((match, index) => (
                   <motion.div
                     key={match.id}
                     initial={{ opacity: 0, y: 40 }}
@@ -218,7 +313,7 @@ const DashboardPage = () => {
                     <Card className="hover:shadow-xl transition-all duration-300 border-2 hover:border-red-200">
                       <CardHeader className="pb-4">
                         <div className="flex items-center justify-between">
-                          <CardTitle className="text-xl">{match.name}</CardTitle>
+                          <CardTitle className="text-xl">{match.full_name}</CardTitle>
                           <div className="bg-red-100 text-red-600 px-2 py-1 rounded-full text-sm font-semibold">
                             {match.matchScore}% match
                           </div>
@@ -251,7 +346,7 @@ const DashboardPage = () => {
                             </DialogTrigger>
                             <DialogContent className="max-w-2xl">
                               <DialogHeader>
-                                <DialogTitle className="text-2xl">{match.name}</DialogTitle>
+                                <DialogTitle className="text-2xl">{match.full_name}</DialogTitle>
                               </DialogHeader>
                               <div className="space-y-4">
                                 <div className="grid md:grid-cols-2 gap-4">

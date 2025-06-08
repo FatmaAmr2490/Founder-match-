@@ -1,7 +1,6 @@
-
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,117 +9,196 @@ import { useToast } from '@/components/ui/use-toast';
 import { Users, MessageSquare, Send, ArrowLeft, Search, UserCircle2, Trash2, CornerDownLeft } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 
 const ChatPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { currentUser, loading } = useAuth();
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [newMessage, setNewMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    if (loading || !currentUser) return;
-
-    const storedConversations = JSON.parse(localStorage.getItem(`founderMatchChats_${currentUser.id}`) || '{}');
+    if (loading) return;
+    if (!currentUser) {
+      navigate('/signup');
+      return;
+    }
+    fetchConversations();
     
-    const allUsers = JSON.parse(localStorage.getItem('founderMatchUsers') || '[]');
-    
-    const formattedConversations = Object.entries(storedConversations).map(([otherUserId, messages]) => {
-      const otherUser = allUsers.find(u => u.id === otherUserId);
-      return {
-        id: otherUserId,
-        name: otherUser ? otherUser.name : 'Unknown User',
-        avatarFallback: otherUser ? otherUser.name.charAt(0).toUpperCase() : 'U',
-        messages: messages,
-        lastMessage: messages.length > 0 ? messages[messages.length - 1] : { text: 'No messages yet', timestamp: '' },
-      };
-    }).sort((a, b) => new Date(b.lastMessage.timestamp || 0) - new Date(a.lastMessage.timestamp || 0));
+    // Subscribe to new messages
+    const subscription = supabase
+      .channel('messages')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+      }, handleNewMessage)
+      .subscribe();
 
-    setConversations(formattedConversations);
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [currentUser, loading]);
 
-  const handleSelectConversation = (conv) => {
-    setSelectedConversation(conv);
+  useEffect(() => {
+    if (location.state?.matchId) {
+      fetchConversation(location.state.matchId);
+    }
+  }, [location.state]);
+
+  const fetchConversations = async () => {
+    try {
+      const { data: matches, error: matchesError } = await supabase
+        .from('matches')
+        .select(`
+          *,
+          user1:profiles!matches_user1_id_fkey(id, full_name),
+          user2:profiles!matches_user2_id_fkey(id, full_name),
+          messages(*)
+        `)
+        .or(`user1_id.eq.${currentUser.id},user2_id.eq.${currentUser.id}`)
+        .order('created_at', { foreignTable: 'messages', ascending: false });
+
+      if (matchesError) throw matchesError;
+
+      const conversationsData = matches.map(match => ({
+        id: match.id,
+        otherUser: match.user1_id === currentUser.id ? match.user2 : match.user1,
+        messages: match.messages || [],
+        lastMessage: match.messages?.[match.messages.length - 1] || null
+      }));
+
+      setConversations(conversationsData);
+    } catch (error) {
+      console.error('Error fetching conversations:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load conversations. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleSendMessage = () => {
-    if (!newMessage.trim() || !selectedConversation || !currentUser) return;
+  const fetchConversation = async (matchId) => {
+    try {
+      const { data: match, error: matchError } = await supabase
+        .from('matches')
+        .select(`
+          *,
+          user1:profiles!matches_user1_id_fkey(id, full_name),
+          user2:profiles!matches_user2_id_fkey(id, full_name),
+          messages(*)
+        `)
+        .eq('id', matchId)
+        .single();
 
-    const message = {
-      id: Date.now().toString(),
-      text: newMessage,
-      senderId: currentUser.id,
-      timestamp: new Date().toISOString(),
-    };
+      if (matchError) throw matchError;
 
-    const updatedConversations = conversations.map(conv => {
-      if (conv.id === selectedConversation.id) {
-        return { ...conv, messages: [...conv.messages, message], lastMessage: message };
-      }
-      return conv;
-    });
-    setConversations(updatedConversations.sort((a, b) => new Date(b.lastMessage.timestamp) - new Date(a.lastMessage.timestamp)));
-    
-    const storedChats = JSON.parse(localStorage.getItem(`founderMatchChats_${currentUser.id}`) || '{}');
-    const currentChatHistory = storedChats[selectedConversation.id] || [];
-    storedChats[selectedConversation.id] = [...currentChatHistory, message];
-    localStorage.setItem(`founderMatchChats_${currentUser.id}`, JSON.stringify(storedChats));
-
-    // Simulate receiving a reply for demo purposes
-    setTimeout(() => {
-      const replyMessage = {
-        id: (Date.now() + 1).toString(),
-        text: `Thanks for your message! I'll get back to you.`,
-        senderId: selectedConversation.id,
-        timestamp: new Date().toISOString(),
+      const conversation = {
+        id: match.id,
+        otherUser: match.user1_id === currentUser.id ? match.user2 : match.user1,
+        messages: match.messages || [],
+        lastMessage: match.messages?.[match.messages.length - 1] || null
       };
-       const updatedConversationsWithReply = updatedConversations.map(conv => {
-        if (conv.id === selectedConversation.id) {
-          return { ...conv, messages: [...conv.messages, replyMessage], lastMessage: replyMessage };
+
+      setSelectedConversation(conversation);
+    } catch (error) {
+      console.error('Error fetching conversation:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load conversation. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleNewMessage = (payload) => {
+    const newMessage = payload.new;
+    if (!newMessage) return;
+
+    setConversations(prevConversations => {
+      return prevConversations.map(conv => {
+        if (conv.id === newMessage.match_id) {
+          return {
+            ...conv,
+            messages: [...conv.messages, newMessage],
+            lastMessage: newMessage
+          };
         }
         return conv;
       });
-      setConversations(updatedConversationsWithReply.sort((a, b) => new Date(b.lastMessage.timestamp) - new Date(a.lastMessage.timestamp)));
-      
-      const storedChatsReply = JSON.parse(localStorage.getItem(`founderMatchChats_${currentUser.id}`) || '{}');
-      const currentChatHistoryReply = storedChatsReply[selectedConversation.id] || [];
-      storedChatsReply[selectedConversation.id] = [...currentChatHistoryReply, replyMessage];
-      localStorage.setItem(`founderMatchChats_${currentUser.id}`, JSON.stringify(storedChatsReply));
-      
-      setSelectedConversation(prev => prev ? {...prev, messages: [...prev.messages, replyMessage]} : null);
-
-    }, 1500);
-
-
-    setNewMessage('');
-    toast({
-      title: 'Message Sent!',
-      description: `Your message to ${selectedConversation.name} has been sent.`,
     });
+
+    if (selectedConversation?.id === newMessage.match_id) {
+      setSelectedConversation(prev => ({
+        ...prev,
+        messages: [...prev.messages, newMessage]
+      }));
+    }
   };
 
-  const handleDeleteConversation = (conversationId) => {
-    const updatedConversations = conversations.filter(conv => conv.id !== conversationId);
-    setConversations(updatedConversations);
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedConversation) return;
 
-    const storedChats = JSON.parse(localStorage.getItem(`founderMatchChats_${currentUser.id}`) || '{}');
-    delete storedChats[conversationId];
-    localStorage.setItem(`founderMatchChats_${currentUser.id}`, JSON.stringify(storedChats));
+    try {
+      const { data: message, error } = await supabase
+        .from('messages')
+        .insert({
+          match_id: selectedConversation.id,
+          sender_id: currentUser.id,
+          content: newMessage.trim()
+        })
+        .select()
+        .single();
 
-    if (selectedConversation && selectedConversation.id === conversationId) {
-      setSelectedConversation(null);
+      if (error) throw error;
+
+      setNewMessage('');
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive"
+      });
     }
-    toast({
-      title: 'Conversation Deleted',
-      description: 'The chat history has been removed.',
-      variant: 'destructive',
-    });
+  };
+
+  const handleDeleteConversation = async (matchId) => {
+    try {
+      const { error } = await supabase
+        .from('matches')
+        .delete()
+        .eq('id', matchId);
+
+      if (error) throw error;
+
+      setConversations(prev => prev.filter(conv => conv.id !== matchId));
+      if (selectedConversation?.id === matchId) {
+        setSelectedConversation(null);
+      }
+
+      toast({
+        title: "Conversation Deleted",
+        description: "The chat history has been removed.",
+      });
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete conversation. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const filteredConversations = conversations.filter(conv =>
-    conv.name.toLowerCase().includes(searchTerm.toLowerCase())
+    conv.otherUser.full_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (loading || !currentUser) {
@@ -196,18 +274,17 @@ const ChatPage = () => {
                     "p-3 hover:bg-red-50 cursor-pointer transition-colors",
                     selectedConversation?.id === conv.id && "bg-red-100 border-red-300"
                   )}
-                  onClick={() => handleSelectConversation(conv)}
+                  onClick={() => setSelectedConversation(conv)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                        <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-red-500 font-semibold">
-                         {conv.avatarFallback}
+                         {conv.otherUser.full_name.charAt(0).toUpperCase()}
                        </div>
                        <div>
-                         <p className="font-semibold text-sm">{conv.name}</p>
+                         <p className="font-semibold text-sm">{conv.otherUser.full_name}</p>
                          <p className="text-xs text-gray-500 truncate max-w-[150px]">
-                           {conv.lastMessage.senderId === currentUser.id ? "You: " : ""}
-                           {conv.lastMessage.text}
+                           {conv.messages.length > 0 ? conv.messages[conv.messages.length - 1].content : 'No messages yet'}
                          </p>
                        </div>
                     </div>
@@ -248,9 +325,9 @@ const ChatPage = () => {
                   <CornerDownLeft className="h-5 w-5" />
                 </Button>
                 <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-red-500 font-semibold">
-                  {selectedConversation.avatarFallback}
+                  {selectedConversation.otherUser.full_name.charAt(0).toUpperCase()}
                 </div>
-                <h2 className="text-lg font-semibold">{selectedConversation.name}</h2>
+                <h2 className="text-lg font-semibold">{selectedConversation.otherUser.full_name}</h2>
               </div>
               <div className="flex-1 overflow-y-auto p-6 space-y-4">
                 {selectedConversation.messages.map(msg => (
@@ -258,7 +335,7 @@ const ChatPage = () => {
                     key={msg.id}
                     className={cn(
                       "flex",
-                      msg.senderId === currentUser.id ? "justify-end" : "justify-start"
+                      msg.sender_id === currentUser.id ? "justify-end" : "justify-start"
                     )}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -267,18 +344,18 @@ const ChatPage = () => {
                     <div 
                       className={cn(
                         "max-w-xs lg:max-w-md px-4 py-2 rounded-xl shadow",
-                        msg.senderId === currentUser.id 
+                        msg.sender_id === currentUser.id 
                           ? "bg-red-500 text-white rounded-br-none" 
                           : "bg-white text-gray-800 rounded-bl-none border"
                       )}
                     >
-                      <p className="text-sm">{msg.text}</p>
+                      <p className="text-sm">{msg.content}</p>
                       <p className={cn(
                         "text-xs mt-1",
-                        msg.senderId === currentUser.id ? "text-red-200" : "text-gray-400",
+                        msg.sender_id === currentUser.id ? "text-red-200" : "text-gray-400",
                         "text-right"
                       )}>
-                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
                   </motion.div>
