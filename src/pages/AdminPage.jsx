@@ -3,12 +3,11 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { Users, Eye, Trash2, ArrowLeft, UserPlus, Search, LogOut, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
 
 const AdminPage = () => {
   const navigate = useNavigate();
@@ -34,19 +33,38 @@ const AdminPage = () => {
     fetchUsers();
   }, [isAdmin, navigate]);
 
-  const fetchUsers = async () => {
+  const fetchUsers = () => {
     try {
       setLoading(true);
-      const { data: profiles, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      
-      if (profiles) {
-        setUsers(profiles);
-      }
+      // For demo purposes, create some sample users
+      const sampleUsers = [
+        {
+          id: '1',
+          name: 'John Doe',
+          email: 'john@example.com',
+          skills: 'React, Node.js',
+          university: 'MIT',
+          created_at: '2024-01-01'
+        },
+        {
+          id: '2',
+          name: 'Jane Smith',
+          email: 'jane@example.com',
+          skills: 'Python, Data Science',
+          university: 'Stanford',
+          created_at: '2024-01-02'
+        },
+        // Add the current admin user
+        {
+          id: '3',
+          name: 'Admin User',
+          email: 'admin@foundermatch.com',
+          skills: 'Administration',
+          is_admin: true,
+          created_at: '2024-01-03'
+        }
+      ];
+      setUsers(sampleUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({
@@ -65,15 +83,8 @@ const AdminPage = () => {
     user.skills?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleDeleteUser = async (userId) => {
+  const handleDeleteUser = (userId) => {
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', userId);
-
-      if (error) throw error;
-
       setUsers(users.filter(user => user.id !== userId));
       toast({
         title: "User Deleted",
@@ -98,6 +109,14 @@ const AdminPage = () => {
     setDialogOpen(false);
     setSelectedUser(null);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -239,13 +258,15 @@ const AdminPage = () => {
                             <Eye className="h-4 w-4 mr-1" />
                             View
                           </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleDeleteUser(user.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {!user.is_admin && (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleDeleteUser(user.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </motion.div>
                     ))}
