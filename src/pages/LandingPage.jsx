@@ -270,7 +270,7 @@ const LandingPage = () => {
                 </a>
               </div>
             </div>
-            <div className="pl-12">
+            <div className="pl-24">
               <span className="text-lg font-semibold mb-4 block">Legal</span>
               <div className="flex flex-col space-y-2">
                 <a href="mailto:foundermatch13@gmail.com" className="text-gray-400 hover:text-white cursor-pointer transition-colors">Contact</a>
