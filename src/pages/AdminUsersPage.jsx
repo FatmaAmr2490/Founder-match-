@@ -16,25 +16,13 @@ const AdminUsersPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Check if user is admin, if not redirect to dashboard
-    if (!isAdmin) {
-      toast({
-        title: "Access Denied",
-        description: "You don't have permission to access the admin panel.",
-        variant: "destructive"
-      });
-      navigate('/dashboard');
-      return;
-    }
-    fetchUsers();
-  }, [isAdmin, navigate]);
-
   const fetchUsers = () => {
     try {
       setLoading(true);
+      console.log('Fetching users...');
       // Get users from localStorage
       const storedUsers = JSON.parse(localStorage.getItem('founderMatchUsers') || '[]');
+      console.log('Stored users:', storedUsers);
       
       // Add admin user if not present
       const adminExists = storedUsers.some(user => user.email === 'admin@foundermatch.com');
@@ -71,9 +59,10 @@ const AdminUsersPage = () => {
             created_at: new Date().toISOString()
           }
         );
+        localStorage.setItem('founderMatchUsers', JSON.stringify(storedUsers));
       }
 
-      localStorage.setItem('founderMatchUsers', JSON.stringify(storedUsers));
+      console.log('Final users to set:', storedUsers);
       setUsers(storedUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -86,6 +75,24 @@ const AdminUsersPage = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const checkAdminAndFetchUsers = () => {
+      console.log('Checking admin status:', isAdmin);
+      if (!isAdmin) {
+        toast({
+          title: "Access Denied",
+          description: "You don't have permission to access the admin panel.",
+          variant: "destructive"
+        });
+        navigate('/dashboard');
+        return;
+      }
+      fetchUsers();
+    };
+
+    checkAdminAndFetchUsers();
+  }, [isAdmin, navigate, toast]);
 
   const handleDeleteUser = (userId) => {
     try {
@@ -112,6 +119,9 @@ const AdminUsersPage = () => {
     user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.skills?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  console.log('Rendering with users:', users);
+  console.log('Filtered users:', filteredUsers);
 
   if (loading) {
     return (

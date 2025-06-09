@@ -15,11 +15,22 @@ export const AuthProvider = ({ children }) => {
 
   const checkUser = () => {
     try {
+      console.log('Checking user status...');
       const savedUser = localStorage.getItem('user');
       if (savedUser) {
         const user = JSON.parse(savedUser);
+        console.log('Found saved user:', user);
         setCurrentUser(user);
-        setIsAdmin(user.email === 'admin@foundermatch.com');
+        const adminStatus = user.email === 'admin@foundermatch.com';
+        console.log('Setting admin status:', adminStatus);
+        setIsAdmin(adminStatus);
+
+        // Initialize users array if it doesn't exist
+        const existingUsers = JSON.parse(localStorage.getItem('founderMatchUsers') || '[]');
+        if (!existingUsers.some(u => u.email === user.email)) {
+          existingUsers.push(user);
+          localStorage.setItem('founderMatchUsers', JSON.stringify(existingUsers));
+        }
       }
     } catch (error) {
       console.error('Error checking user:', error);
@@ -67,19 +78,47 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
+      console.log('Login attempt for:', email);
+      
       // Get existing users
       const existingUsers = JSON.parse(localStorage.getItem('founderMatchUsers') || '[]');
+      console.log('Existing users:', existingUsers);
       
       // Find user with matching email
       const user = existingUsers.find(u => u.email === email);
+      console.log('Found user:', user);
       
       if (!user) {
+        // Special case for admin's first login
+        if (email === 'admin@foundermatch.com') {
+          const adminUser = {
+            id: 'admin',
+            email: 'admin@foundermatch.com',
+            name: 'Admin User',
+            skills: 'Administration',
+            is_admin: true,
+            created_at: new Date().toISOString()
+          };
+          
+          // Add admin to users array
+          existingUsers.push(adminUser);
+          localStorage.setItem('founderMatchUsers', JSON.stringify(existingUsers));
+          
+          // Set as current user
+          localStorage.setItem('user', JSON.stringify(adminUser));
+          setCurrentUser(adminUser);
+          setIsAdmin(true);
+          
+          return { success: true, isAdmin: true };
+        }
+        
         throw new Error('User not found');
       }
 
       // For demo purposes, we're not checking password
       const isAdminEmail = email === 'admin@foundermatch.com';
 
+      // Store current user
       localStorage.setItem('user', JSON.stringify(user));
       setCurrentUser(user);
       setIsAdmin(isAdminEmail);
@@ -102,15 +141,20 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const value = {
+    currentUser,
+    isAdmin,
+    login,
+    logout,
+    signup,
+    loading,
+    checkUser // Export checkUser so it can be called after state changes
+  };
+
+  console.log('AuthContext state:', { currentUser, isAdmin, loading });
+
   return (
-    <AuthContext.Provider value={{ 
-      currentUser, 
-      isAdmin, 
-      login, 
-      logout, 
-      signup, 
-      loading
-    }}>
+    <AuthContext.Provider value={value}>
       {!loading && children}
     </AuthContext.Provider>
   );
