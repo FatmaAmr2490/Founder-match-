@@ -7,7 +7,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from '@/components/ui/use-toast';
 import { Users, MessageCircle, User, Mail, GraduationCap, Briefcase, Heart, Clock, ArrowLeft, LogOut, MessageSquare as ChatIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
 
 const DashboardPage = () => {
   const navigate = useNavigate();
@@ -51,18 +50,41 @@ const DashboardPage = () => {
     return Math.min(score, 100);
   };
 
-  const fetchMatches = async () => {
+  const fetchMatches = () => {
     try {
-      // Get all users except current user
-      const { data: users, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .neq('id', currentUser.id);
-
-      if (error) throw error;
+      // Sample users for demo
+      const sampleUsers = [
+        {
+          id: '1',
+          name: 'John Doe',
+          email: 'john@example.com',
+          university: 'MIT',
+          skills: 'React, Node.js',
+          interests: 'AI, Blockchain',
+          availability: 'Full-time'
+        },
+        {
+          id: '2',
+          name: 'Jane Smith',
+          email: 'jane@example.com',
+          university: 'Stanford',
+          skills: 'Python, Data Science',
+          interests: 'Machine Learning, Web3',
+          availability: 'Part-time'
+        },
+        {
+          id: '3',
+          name: 'Mike Johnson',
+          email: 'mike@example.com',
+          university: 'Harvard',
+          skills: 'UI/UX, Product Design',
+          interests: 'Design Systems, User Research',
+          availability: 'Full-time'
+        }
+      ];
 
       // Calculate match scores
-      const matchesWithScores = users
+      const matchesWithScores = sampleUsers
         .map(user => ({
           ...user,
           matchScore: calculateMatchScore(currentUser, user)

@@ -1,36 +1,37 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
-import { Users, MessageSquare, Send, ArrowLeft, Search, UserCircle2, Trash2, CornerDownLeft } from 'lucide-react';
+import { Users, MessageSquare, Send, ArrowLeft, Search, UserCircle2, Trash2, CornerDownLeft, LogOut } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/lib/supabase';
 
 const ChatPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
-  const { currentUser, loading } = useAuth();
-  const [conversations, setConversations] = useState([]);
-  const [selectedConversation, setSelectedConversation] = useState(null);
+  const { currentUser, logout } = useAuth();
+  const [selectedUserId, setSelectedUserId] = useState(location.state?.selectedUserId || null);
+  const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
+  const [contacts, setContacts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    if (loading || !currentUser) return;
-    
-    fetchConversations();
-    const subscription = setupMessagesSubscription();
-    
-    return () => {
-      subscription?.unsubscribe();
-    };
-  }, [currentUser, loading]);
+    if (!currentUser) {
+      navigate('/login');
+      return;
+    }
+    loadContacts();
+    if (selectedUserId) {
+      loadMessages(selectedUserId);
+    }
+  }, [currentUser, selectedUserId]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -38,120 +39,77 @@ const ChatPage = () => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [selectedConversation]);
+  }, [selectedUserId]);
 
-  const fetchConversations = async () => {
+  const loadContacts = () => {
     try {
-      // Get all messages for the current user
-      const { data: messages, error } = await supabase
-        .from('messages')
-        .select(`
-          *,
-          sender:profiles!messages_sender_id_fkey(*),
-          receiver:profiles!messages_receiver_id_fkey(*)
-        `)
-        .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`);
-
-      if (error) throw error;
-
-      // Group messages by conversation
-      const conversationsMap = messages.reduce((acc, message) => {
-        const otherUser = message.sender_id === currentUser.id ? message.receiver : message.sender;
-        const conversationId = otherUser.id;
-
-        if (!acc[conversationId]) {
-          acc[conversationId] = {
-            id: conversationId,
-            name: otherUser.name,
-            messages: [],
-            lastMessage: null
-          };
+      // Sample contacts for demo
+      const sampleContacts = [
+        {
+          id: '1',
+          name: 'John Doe',
+          email: 'john@example.com',
+          lastMessage: 'Hey, would love to connect!',
+          timestamp: new Date().toISOString()
+        },
+        {
+          id: '2',
+          name: 'Jane Smith',
+          email: 'jane@example.com',
+          lastMessage: 'Great idea! Let\'s discuss more.',
+          timestamp: new Date().toISOString()
+        },
+        {
+          id: '3',
+          name: 'Mike Johnson',
+          email: 'mike@example.com',
+          lastMessage: 'Thanks for reaching out!',
+          timestamp: new Date().toISOString()
         }
-
-        acc[conversationId].messages.push(message);
-        if (!acc[conversationId].lastMessage || message.created_at > acc[conversationId].lastMessage.created_at) {
-          acc[conversationId].lastMessage = message;
-        }
-
-        return acc;
-      }, {});
-
-      setConversations(Object.values(conversationsMap)
-        .sort((a, b) => new Date(b.lastMessage?.created_at || 0) - new Date(a.lastMessage?.created_at || 0))
-      );
+      ];
+      setContacts(sampleContacts);
     } catch (error) {
-      console.error('Error fetching conversations:', error);
+      console.error('Error loading contacts:', error);
+    }
+  };
+
+  const loadMessages = (userId) => {
+    try {
+      const storedChats = JSON.parse(localStorage.getItem(`founderMatchChats_${currentUser.id}`) || '{}');
+      const chatMessages = storedChats[userId] || [];
+      setMessages(chatMessages);
+    } catch (error) {
+      console.error('Error loading messages:', error);
       toast({
         title: "Error",
-        description: "Failed to load conversations. Please try again.",
+        description: "Failed to load messages. Please try again.",
         variant: "destructive"
       });
     }
   };
 
-  const setupMessagesSubscription = () => {
-    return supabase
-      .channel('messages')
-      .on('postgres_changes', 
-        {
-          event: '*',
-          schema: 'public',
-          table: 'messages',
-          filter: `sender_id=eq.${currentUser.id} OR receiver_id=eq.${currentUser.id}`
-        },
-        (payload) => {
-          handleMessageChange(payload);
-        }
-      )
-      .subscribe();
-  };
-
-  const handleMessageChange = (payload) => {
-    if (payload.eventType === 'INSERT') {
-      const newMessage = payload.new;
-      setConversations(prevConversations => {
-        const conversationId = newMessage.sender_id === currentUser.id 
-          ? newMessage.receiver_id 
-          : newMessage.sender_id;
-
-        const existingConversation = prevConversations.find(c => c.id === conversationId);
-        if (existingConversation) {
-          return prevConversations.map(conv => {
-            if (conv.id === conversationId) {
-              return {
-                ...conv,
-                messages: [...conv.messages, newMessage],
-                lastMessage: newMessage
-              };
-            }
-            return conv;
-          }).sort((a, b) => new Date(b.lastMessage?.created_at || 0) - new Date(a.lastMessage?.created_at || 0));
-        }
-        
-        // If it's a new conversation, fetch the complete conversation data
-        fetchConversations();
-        return prevConversations;
-      });
-    }
-  };
-
-  const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedConversation) return;
+  const sendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !selectedUserId) return;
 
     try {
-      const { error } = await supabase
-        .from('messages')
-        .insert([
-          {
-            sender_id: currentUser.id,
-            receiver_id: selectedConversation.id,
-            content: newMessage.trim(),
-            created_at: new Date().toISOString()
-          }
-        ]);
+      const message = {
+        id: Date.now().toString(),
+        content: newMessage.trim(),
+        sender_id: currentUser.id,
+        receiver_id: selectedUserId,
+        created_at: new Date().toISOString()
+      };
 
-      if (error) throw error;
+      // Store message in localStorage
+      const storedChats = JSON.parse(localStorage.getItem(`founderMatchChats_${currentUser.id}`) || '{}');
+      if (!storedChats[selectedUserId]) {
+        storedChats[selectedUserId] = [];
+      }
+      storedChats[selectedUserId].push(message);
+      localStorage.setItem(`founderMatchChats_${currentUser.id}`, JSON.stringify(storedChats));
 
+      setMessages(prev => [...prev, message]);
       setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
@@ -163,26 +121,21 @@ const ChatPage = () => {
     }
   };
 
-  const handleSelectConversation = (conv) => {
-    setSelectedConversation(conv);
+  const selectContact = (userId) => {
+    setSelectedUserId(userId);
+    loadMessages(userId);
   };
 
   const handleDeleteConversation = async (conversationId) => {
     try {
       // Delete all messages in the conversation
-      const { error } = await supabase
-        .from('messages')
-        .delete()
-        .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${conversationId}),and(sender_id.eq.${conversationId},receiver_id.eq.${currentUser.id})`);
+      const storedChats = JSON.parse(localStorage.getItem(`founderMatchChats_${currentUser.id}`) || '{}');
+      const updatedChats = { ...storedChats };
+      delete updatedChats[conversationId];
+      localStorage.setItem(`founderMatchChats_${currentUser.id}`, JSON.stringify(updatedChats));
 
-      if (error) throw error;
-
-      // Update local state
-      const updatedConversations = conversations.filter(conv => conv.id !== conversationId);
-      setConversations(updatedConversations);
-
-      if (selectedConversation && selectedConversation.id === conversationId) {
-        setSelectedConversation(null);
+      if (selectedUserId === conversationId) {
+        setSelectedUserId(null);
       }
 
       toast({
@@ -200,11 +153,11 @@ const ChatPage = () => {
     }
   };
 
-  const filteredConversations = conversations.filter(conv =>
-    conv.name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredContacts = contacts.filter(contact =>
+    contact.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  if (loading || !currentUser) {
+  if (!currentUser) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -242,7 +195,7 @@ const ChatPage = () => {
         <motion.aside 
           className={cn(
             "w-full md:w-1/3 lg:w-1/4 border-r border-gray-200 bg-white p-4 flex flex-col transition-all duration-300 ease-in-out",
-            selectedConversation && "hidden md:flex" 
+            selectedUserId && "hidden md:flex" 
           )}
           initial={{ x: -100, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
@@ -258,16 +211,16 @@ const ChatPage = () => {
             />
           </div>
           <div className="flex-1 overflow-y-auto space-y-2">
-            {filteredConversations.length === 0 && (
+            {filteredContacts.length === 0 && (
               <div className="text-center text-gray-500 py-10">
                 <MessageSquare className="h-12 w-12 mx-auto mb-2 opacity-50" />
                 <p>No conversations yet.</p>
                 <p className="text-sm">Start a chat from a user's profile.</p>
               </div>
             )}
-            {filteredConversations.map(conv => (
+            {filteredContacts.map(contact => (
               <motion.div
-                key={conv.id}
+                key={contact.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
@@ -275,20 +228,19 @@ const ChatPage = () => {
                 <Card 
                   className={cn(
                     "p-3 hover:bg-red-50 cursor-pointer transition-colors",
-                    selectedConversation?.id === conv.id && "bg-red-100 border-red-300"
+                    selectedUserId === contact.id && "bg-red-100 border-red-300"
                   )}
-                  onClick={() => handleSelectConversation(conv)}
+                  onClick={() => selectContact(contact.id)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                        <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-red-500 font-semibold">
-                         {conv.avatarFallback}
+                         {contact.name.substring(0, 2)}
                        </div>
                        <div>
-                         <p className="font-semibold text-sm">{conv.name}</p>
+                         <p className="font-semibold text-sm">{contact.name}</p>
                          <p className="text-xs text-gray-500 truncate max-w-[150px]">
-                           {conv.lastMessage.senderId === currentUser.id ? "You: " : ""}
-                           {conv.lastMessage.text}
+                           {contact.lastMessage}
                          </p>
                        </div>
                     </div>
@@ -296,7 +248,7 @@ const ChatPage = () => {
                         variant="ghost" 
                         size="icon" 
                         className="text-gray-400 hover:text-red-500 h-7 w-7" 
-                        onClick={(e) => { e.stopPropagation(); handleDeleteConversation(conv.id); }}
+                        onClick={(e) => { e.stopPropagation(); handleDeleteConversation(contact.id); }}
                     >
                         <Trash2 className="h-4 w-4" />
                     </Button>
@@ -311,35 +263,35 @@ const ChatPage = () => {
         <motion.main 
           className={cn(
             "flex-1 flex flex-col bg-gray-50 transition-all duration-300 ease-in-out",
-            !selectedConversation && "hidden md:flex md:items-center md:justify-center" 
+            !selectedUserId && "hidden md:flex md:items-center md:justify-center" 
           )}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
-          {selectedConversation ? (
+          {selectedUserId ? (
             <>
               <div className="p-4 border-b border-gray-200 bg-white flex items-center space-x-3 sticky top-16 md:top-0 z-10">
                 <Button 
                   variant="ghost" 
                   size="icon" 
                   className="md:hidden" 
-                  onClick={() => setSelectedConversation(null)}
+                  onClick={() => setSelectedUserId(null)}
                 >
                   <CornerDownLeft className="h-5 w-5" />
                 </Button>
                 <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-red-500 font-semibold">
-                  {selectedConversation.avatarFallback}
+                  {selectedUserId.substring(0, 2)}
                 </div>
-                <h2 className="text-lg font-semibold">{selectedConversation.name}</h2>
+                <h2 className="text-lg font-semibold">{selectedUserId}</h2>
               </div>
               <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                {selectedConversation.messages.map(msg => (
+                {messages.map(msg => (
                   <motion.div
                     key={msg.id}
                     className={cn(
                       "flex",
-                      msg.senderId === currentUser.id ? "justify-end" : "justify-start"
+                      msg.sender_id === currentUser.id ? "justify-end" : "justify-start"
                     )}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -348,23 +300,23 @@ const ChatPage = () => {
                     <div 
                       className={cn(
                         "max-w-xs lg:max-w-md px-4 py-2 rounded-xl shadow",
-                        msg.senderId === currentUser.id 
+                        msg.sender_id === currentUser.id 
                           ? "bg-red-500 text-white rounded-br-none" 
                           : "bg-white text-gray-800 rounded-bl-none border"
                       )}
                     >
-                      <p className="text-sm">{msg.text}</p>
+                      <p className="text-sm">{msg.content}</p>
                       <p className={cn(
                         "text-xs mt-1",
-                        msg.senderId === currentUser.id ? "text-red-200" : "text-gray-400",
+                        msg.sender_id === currentUser.id ? "text-red-200" : "text-gray-400",
                         "text-right"
                       )}>
-                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
                   </motion.div>
                 ))}
-                 {selectedConversation.messages.length === 0 && (
+                 {messages.length === 0 && (
                     <div className="text-center text-gray-400 pt-10">
                         <MessageSquare size={48} className="mx-auto mb-2 opacity-50"/>
                         <p>No messages in this conversation yet.</p>
@@ -381,7 +333,7 @@ const ChatPage = () => {
                     onKeyPress={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
-                        sendMessage();
+                        sendMessage(e);
                       }
                     }}
                     className="flex-1 resize-none"
