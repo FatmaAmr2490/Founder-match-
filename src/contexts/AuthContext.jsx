@@ -38,7 +38,22 @@ export const AuthProvider = ({ children }) => {
         created_at: new Date().toISOString()
       };
 
-      // Store user in localStorage
+      // Get existing users or initialize empty array
+      const existingUsers = JSON.parse(localStorage.getItem('founderMatchUsers') || '[]');
+      
+      // Check if email already exists
+      const emailExists = existingUsers.some(u => u.email === userData.email);
+      if (emailExists) {
+        throw new Error('Email already exists');
+      }
+
+      // Add new user to the array
+      existingUsers.push(user);
+
+      // Store updated users array
+      localStorage.setItem('founderMatchUsers', JSON.stringify(existingUsers));
+      
+      // Store current user
       localStorage.setItem('user', JSON.stringify(user));
       setCurrentUser(user);
       setIsAdmin(isAdminEmail);
@@ -52,15 +67,18 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      // For demo purposes, accept any email/password combination
+      // Get existing users
+      const existingUsers = JSON.parse(localStorage.getItem('founderMatchUsers') || '[]');
+      
+      // Find user with matching email
+      const user = existingUsers.find(u => u.email === email);
+      
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // For demo purposes, we're not checking password
       const isAdminEmail = email === 'admin@foundermatch.com';
-      const user = {
-        id: Date.now().toString(),
-        email,
-        name: email.split('@')[0],
-        is_admin: isAdminEmail,
-        created_at: new Date().toISOString()
-      };
 
       localStorage.setItem('user', JSON.stringify(user));
       setCurrentUser(user);

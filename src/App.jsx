@@ -66,6 +66,14 @@ function AppContent() {
             </ProtectedRoute>
           } 
         />
+        <Route 
+          path="/admin/users" 
+          element={
+            <ProtectedRoute adminOnly={true}>
+              <AdminUsersPage />
+            </ProtectedRoute>
+          } 
+        />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/terms-of-service" element={<TermsOfServicePage />} />
       </Routes>

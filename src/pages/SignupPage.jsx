@@ -34,7 +34,7 @@ const SignupPage = () => {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!formData.name || !formData.email || !formData.password || !formData.skills) {
@@ -55,25 +55,33 @@ const SignupPage = () => {
       return;
     }
 
-    const { success, isAdmin } = signup(formData);
+    try {
+      const { success, isAdmin, message } = await signup(formData);
 
-    if (success) {
-      toast({
-        title: "Profile Created!",
-        description: "Welcome to FounderMatch! Let's find your co-founder.",
-      });
+      if (success) {
+        toast({
+          title: "Profile Created!",
+          description: "Welcome to FounderMatch! Let's find your co-founder.",
+        });
 
-      setTimeout(() => {
-        if (isAdmin) {
-          navigate('/admin');
-        } else {
-          navigate('/dashboard');
-        }
-      }, 1500);
-    } else {
+        setTimeout(() => {
+          if (isAdmin) {
+            navigate('/admin');
+          } else {
+            navigate('/dashboard');
+          }
+        }, 1500);
+      } else {
+        toast({
+          title: "Signup Failed",
+          description: message || "Could not create your profile. Please try again.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
       toast({
         title: "Signup Failed",
-        description: "Could not create your profile. Please try again.",
+        description: error.message || "Could not create your profile. Please try again.",
         variant: "destructive"
       });
     }
