@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { HelpCircle, X, Send, Bot, Search } from 'lucide-react';
+import { HelpCircle, X, Send, Bot, Search, Loader2 } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 
 const commonQuestions = [
   {
@@ -41,13 +42,105 @@ const commonQuestions = [
 ];
 
 const HelpCenter = () => {
+  const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedQuestion, setSelectedQuestion] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [inputValue, setInputValue] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const filteredQuestions = commonQuestions.filter(q =>
     q.q.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleSendMessage = async () => {
+    if (!inputValue.trim()) return;
+
+    try {
+      setIsLoading(true);
+      const userMessage = inputValue.trim();
+      setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+      setInputValue('');
+
+      // First, check if the question matches any common questions
+      const matchingQuestion = commonQuestions.find(q => 
+        q.q.toLowerCase().includes(userMessage.toLowerCase()) ||
+        userMessage.toLowerCase().includes(q.q.toLowerCase())
+      );
+
+      if (matchingQuestion) {
+        // If there's a matching pre-defined question, use its answer
+        setTimeout(() => {
+          setMessages(prev => [...prev, { role: 'assistant', content: matchingQuestion.a }]);
+          setIsLoading(false);
+        }, 500);
+        return;
+      }
+
+      // If no matching question, use AI response
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a helpful assistant for FounderMatch, a platform that helps entrepreneurs find co-founders. Provide concise, helpful answers about entrepreneurship, co-founder matching, and startup-related topics.'
+            },
+            {
+              role: 'user',
+              content: userMessage
+            }
+          ],
+          max_tokens: 150
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get AI response');
+      }
+
+      const data = await response.json();
+      const aiMessage = data.choices[0].message.content;
+
+      setMessages(prev => [...prev, { role: 'assistant', content: aiMessage }]);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast({
+        title: "Error",
+        description: "Failed to get a response. Please try again.",
+        variant: "destructive"
+      });
+      // Fallback to a generic response
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: "I apologize, but I'm having trouble connecting to the AI service right now. Please try asking one of the common questions above or try again later."
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
 
   return (
     <>
@@ -126,44 +219,91 @@ const HelpCenter = () => {
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                         <Input
-                          placeholder="Search help topics..."
+                          placeholder="Search common questions..."
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
                           className="pl-10"
                         />
                       </div>
                       
-                      <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                        {filteredQuestions.map((q, index) => (
+                      {searchTerm && (
+                        <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                          {filteredQuestions.map((q, index) => (
+                            <motion.div
+                              key={index}
+                              initial={{ opacity: 0, y: 20 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: index * 0.1 }}
+                            >
+                              <Button
+                                variant="outline"
+                                className="w-full justify-start text-left h-auto py-3 px-4"
+                                onClick={() => setSelectedQuestion(q)}
+                              >
+                                <span className="line-clamp-2">{q.q}</span>
+                              </Button>
+                            </motion.div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="h-[300px] overflow-y-auto border rounded-lg p-4 space-y-4">
+                        {messages.map((message, index) => (
                           <motion.div
                             key={index}
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: index * 0.1 }}
+                            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                           >
-                            <Button
-                              variant="outline"
-                              className="w-full justify-start text-left h-auto py-3 px-4"
-                              onClick={() => setSelectedQuestion(q)}
+                            <div
+                              className={`max-w-[80%] p-3 rounded-lg ${
+                                message.role === 'user'
+                                  ? 'bg-red-600 text-white'
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}
                             >
-                              <span className="line-clamp-2">{q.q}</span>
-                            </Button>
+                              {message.content}
+                            </div>
                           </motion.div>
                         ))}
+                        {isLoading && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="flex justify-start"
+                          >
+                            <div className="bg-gray-100 p-3 rounded-lg">
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                            </div>
+                          </motion.div>
+                        )}
+                        <div ref={messagesEndRef} />
                       </div>
 
                       <div className="pt-4 border-t">
                         <div className="flex items-center space-x-2">
                           <Input
-                            placeholder="Ask a question..."
+                            placeholder="Ask any question..."
+                            value={inputValue}
+                            onChange={(e) => setInputValue(e.target.value)}
+                            onKeyPress={handleKeyPress}
                             className="flex-1"
+                            disabled={isLoading}
                           />
-                          <Button className="gradient-bg text-white">
-                            <Send className="w-4 h-4" />
+                          <Button 
+                            className="gradient-bg text-white"
+                            onClick={handleSendMessage}
+                            disabled={isLoading || !inputValue.trim()}
+                          >
+                            {isLoading ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Send className="w-4 h-4" />
+                            )}
                           </Button>
                         </div>
                         <p className="text-xs text-gray-500 mt-2">
-                          Type your question or browse common topics above
+                          Type your question or search common topics above
                         </p>
                       </div>
                     </div>

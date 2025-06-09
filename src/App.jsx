@@ -8,6 +8,7 @@ import LoginPage from '@/pages/LoginPage';
 import DashboardPage from '@/pages/DashboardPage';
 import AdminPage from '@/pages/AdminPage';
 import AdminUsersPage from '@/pages/AdminUsersPage';
+import AdminUserProfilePage from '@/pages/AdminUserProfilePage';
 import ChatPage from '@/pages/ChatPage';
 import PrivacyPolicyPage from '@/pages/PrivacyPolicyPage'; // New import
 import TermsOfServicePage from '@/pages/TermsOfServicePage'; // New import
@@ -71,6 +72,14 @@ function AppContent() {
           element={
             <ProtectedRoute adminOnly={true}>
               <AdminUsersPage />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/admin/users/:userId" 
+          element={
+            <ProtectedRoute adminOnly={true}>
+              <AdminUserProfilePage />
             </ProtectedRoute>
           } 
         />
