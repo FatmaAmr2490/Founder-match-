@@ -69,16 +69,16 @@ const HelpCenter = () => {
     <>
       {/* Floating Help Button */}
       <motion.div
-        className="fixed bottom-6 right-6 z-50"
+        className="fixed top-6 right-6 z-50"
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
         transition={{ type: "spring", stiffness: 260, damping: 20 }}
       >
         <Button
-          className="w-14 h-14 rounded-full gradient-bg text-white shadow-xl hover:shadow-2xl"
+          className="w-12 h-12 rounded-full gradient-bg text-white shadow-xl hover:shadow-2xl"
           onClick={() => setIsOpen(true)}
         >
-          <HelpCircle className="w-6 h-6" />
+          <HelpCircle className="w-5 h-5" />
         </Button>
       </motion.div>
 
@@ -97,10 +97,10 @@ const HelpCenter = () => {
 
             {/* Help Center Card */}
             <motion.div
-              className="fixed bottom-24 right-6 w-full max-w-md z-50"
-              initial={{ opacity: 0, y: 100, scale: 0.9 }}
+              className="fixed top-24 right-6 w-full max-w-md z-50"
+              initial={{ opacity: 0, y: -100, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 100, scale: 0.9 }}
+              exit={{ opacity: 0, y: -100, scale: 0.9 }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
             >
               <Card className="shadow-2xl border-2">
