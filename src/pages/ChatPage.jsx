@@ -39,7 +39,7 @@ const ChatPage = () => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [selectedUserId]);
+  }, [selectedUserId, messages]);
 
   const loadContacts = () => {
     try {
