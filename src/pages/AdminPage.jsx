@@ -3,72 +3,100 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
-import { Users, Eye, Edit, Trash2, ArrowLeft, UserPlus, Search, LogOut } from 'lucide-react';
+import { Users, Eye, Trash2, ArrowLeft, UserPlus, Search, LogOut, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 
 const AdminPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { logout, currentUser } = useAuth();
+  const { logout, currentUser, isAdmin } = useAuth();
   const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [editingUser, setEditingUser] = useState(null);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadUsers();
-  }, []);
+    // Check if user is admin, if not redirect to dashboard
+    if (!isAdmin) {
+      toast({
+        title: "Access Denied",
+        description: "You don't have permission to access the admin panel.",
+        variant: "destructive"
+      });
+      navigate('/dashboard');
+      return;
+    }
+    fetchUsers();
+  }, [isAdmin, navigate]);
 
-  const loadUsers = () => {
-    const storedUsers = JSON.parse(localStorage.getItem('founderMatchUsers') || '[]');
-    setUsers(storedUsers);
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const { data: profiles, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      
+      if (profiles) {
+        setUsers(profiles);
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load users. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (user.skills && user.skills.toLowerCase().includes(searchTerm.toLowerCase()))
+    user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.skills?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleDeleteUser = (userId) => {
-    const updatedUsers = users.filter(user => user.id !== userId);
-    setUsers(updatedUsers);
-    localStorage.setItem('founderMatchUsers', JSON.stringify(updatedUsers));
-    
-    toast({
-      title: "User Deleted",
-      description: "User has been successfully removed from the platform.",
-    });
+  const handleDeleteUser = async (userId) => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', userId);
+
+      if (error) throw error;
+
+      setUsers(users.filter(user => user.id !== userId));
+      toast({
+        title: "User Deleted",
+        description: "User has been successfully removed from the platform.",
+      });
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete user. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleEditUser = (user) => {
-    setEditingUser({ ...user });
+  const handleViewUser = (user) => {
+    setSelectedUser(user);
+    setDialogOpen(true);
   };
 
-  const handleSaveEdit = () => {
-    if (!editingUser) return;
-    const updatedUsers = users.map(user => 
-      user.id === editingUser.id ? editingUser : user
-    );
-    setUsers(updatedUsers);
-    localStorage.setItem('founderMatchUsers', JSON.stringify(updatedUsers));
-    setEditingUser(null);
-    
-    toast({
-      title: "User Updated",
-      description: "User profile has been successfully updated.",
-    });
-  };
-
-  const generateMatches = (targetUser) => {
-    const otherUsers = users.filter(u => u.id !== targetUser.id);
-    return otherUsers.map(user => ({
-      ...user,
-      matchScore: Math.floor(Math.random() * 40) + 60 
-    })).sort((a, b) => b.matchScore - a.matchScore).slice(0, 5);
+  const handleCloseDialog = () => {
+    setDialogOpen(false);
+    setSelectedUser(null);
   };
 
   return (
@@ -202,164 +230,20 @@ const AdminPage = () => {
                       </div>
                       
                       <div className="flex items-center space-x-2">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="outline" size="sm">
-                              <Eye className="h-4 w-4 mr-1" />
-                              View
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-4xl">
-                            <DialogHeader>
-                              <DialogTitle className="text-2xl">{user.name} - Profile Details</DialogTitle>
-                            </DialogHeader>
-                            <div className="grid md:grid-cols-2 gap-6">
-                              <div className="space-y-4">
-                                <h3 className="text-lg font-semibold">Profile Information</h3>
-                                <div className="space-y-3">
-                                  <div>
-                                    <p className="text-sm text-gray-500">Email</p>
-                                    <p className="font-medium">{user.email}</p>
-                                  </div>
-                                  {user.university && (
-                                    <div>
-                                      <p className="text-sm text-gray-500">University</p>
-                                      <p className="font-medium">{user.university}</p>
-                                    </div>
-                                  )}
-                                  <div>
-                                    <p className="text-sm text-gray-500">Skills</p>
-                                    <p className="font-medium">{user.skills}</p>
-                                  </div>
-                                  {user.interests && (
-                                    <div>
-                                      <p className="text-sm text-gray-500">Interests</p>
-                                      <p className="font-medium">{user.interests}</p>
-                                    </div>
-                                  )}
-                                  {user.availability && (
-                                    <div>
-                                      <p className="text-sm text-gray-500">Availability</p>
-                                      <p className="font-medium">{user.availability}</p>
-                                    </div>
-                                  )}
-                                  {user.bio && (
-                                    <div>
-                                      <p className="text-sm text-gray-500">Bio</p>
-                                      <p className="text-gray-700">{user.bio}</p>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              <div className="space-y-4">
-                                <h3 className="text-lg font-semibold">Potential Matches</h3>
-                                <div className="space-y-2 max-h-64 overflow-y-auto">
-                                  {generateMatches(user).map((match) => (
-                                    <div key={match.id} className="flex items-center justify-between p-2 border rounded">
-                                      <div>
-                                        <p className="font-medium">{match.name}</p>
-                                        <p className="text-sm text-gray-500">{match.skills}</p>
-                                      </div>
-                                      <div className="bg-red-100 text-red-600 px-2 py-1 rounded text-sm font-semibold">
-                                        {match.matchScore}%
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-
-                        <Dialog open={editingUser?.id === user.id} onOpenChange={(isOpen) => !isOpen && setEditingUser(null)}>
-                          <DialogTrigger asChild>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => handleEditUser(user)}
-                            >
-                              <Edit className="h-4 w-4 mr-1" />
-                              Edit
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-2xl">
-                            <DialogHeader>
-                              <DialogTitle>Edit User Profile</DialogTitle>
-                            </DialogHeader>
-                            {editingUser && editingUser.id === user.id && (
-                              <div className="space-y-4">
-                                <div className="grid md:grid-cols-2 gap-4">
-                                  <div>
-                                    <Label htmlFor="edit-name">Name</Label>
-                                    <Input
-                                      id="edit-name"
-                                      value={editingUser.name}
-                                      onChange={(e) => setEditingUser({...editingUser, name: e.target.value})}
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label htmlFor="edit-email">Email</Label>
-                                    <Input
-                                      id="edit-email"
-                                      value={editingUser.email}
-                                      onChange={(e) => setEditingUser({...editingUser, email: e.target.value})}
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label htmlFor="edit-university">University</Label>
-                                    <Input
-                                      id="edit-university"
-                                      value={editingUser.university || ''}
-                                      onChange={(e) => setEditingUser({...editingUser, university: e.target.value})}
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label htmlFor="edit-availability">Availability</Label>
-                                    <Input
-                                      id="edit-availability"
-                                      value={editingUser.availability || ''}
-                                      onChange={(e) => setEditingUser({...editingUser, availability: e.target.value})}
-                                    />
-                                  </div>
-                                </div>
-                                <div>
-                                  <Label htmlFor="edit-skills">Skills</Label>
-                                  <Input
-                                    id="edit-skills"
-                                    value={editingUser.skills}
-                                    onChange={(e) => setEditingUser({...editingUser, skills: e.target.value})}
-                                  />
-                                </div>
-                                <div>
-                                  <Label htmlFor="edit-interests">Interests</Label>
-                                  <Input
-                                    id="edit-interests"
-                                    value={editingUser.interests || ''}
-                                    onChange={(e) => setEditingUser({...editingUser, interests: e.target.value})}
-                                  />
-                                </div>
-                                <div className="flex justify-end space-x-2">
-                                  <Button variant="outline" onClick={() => setEditingUser(null)}>
-                                    Cancel
-                                  </Button>
-                                  <Button onClick={handleSaveEdit} className="gradient-bg text-white">
-                                    Save Changes
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
-                          </DialogContent>
-                        </Dialog>
-
                         <Button 
                           variant="outline" 
                           size="sm"
-                          onClick={() => handleDeleteUser(user.id)}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleViewUser(user)}
                         >
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          Delete
+                          <Eye className="h-4 w-4 mr-1" />
+                          View
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteUser(user.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </motion.div>
@@ -370,6 +254,71 @@ const AdminPage = () => {
           </Card>
         </motion.div>
       </div>
+
+      {dialogOpen && (
+        <Dialog open={dialogOpen} onOpenChange={handleCloseDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <div className="flex items-center justify-between">
+                <DialogTitle className="text-2xl">
+                  {selectedUser?.name} - Profile Details
+                </DialogTitle>
+                <DialogClose asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-6 w-6 p-0"
+                    onClick={handleCloseDialog}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </DialogClose>
+              </div>
+            </DialogHeader>
+            {selectedUser && (
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold">Profile Information</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm text-gray-500">Email</p>
+                      <p className="font-medium">{selectedUser.email}</p>
+                    </div>
+                    {selectedUser.university && (
+                      <div>
+                        <p className="text-sm text-gray-500">University</p>
+                        <p className="font-medium">{selectedUser.university}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-sm text-gray-500">Skills</p>
+                      <p className="font-medium">{selectedUser.skills}</p>
+                    </div>
+                    {selectedUser.interests && (
+                      <div>
+                        <p className="text-sm text-gray-500">Interests</p>
+                        <p className="font-medium">{selectedUser.interests}</p>
+                      </div>
+                    )}
+                    {selectedUser.availability && (
+                      <div>
+                        <p className="text-sm text-gray-500">Availability</p>
+                        <p className="font-medium">{selectedUser.availability}</p>
+                      </div>
+                    )}
+                    {selectedUser.bio && (
+                      <div>
+                        <p className="text-sm text-gray-500">Bio</p>
+                        <p className="text-gray-700">{selectedUser.bio}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };

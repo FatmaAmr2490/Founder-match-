@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -10,6 +9,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Users, MessageSquare, Send, ArrowLeft, Search, UserCircle2, Trash2, CornerDownLeft } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 
 const ChatPage = () => {
   const navigate = useNavigate();
@@ -19,104 +19,185 @@ const ChatPage = () => {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [newMessage, setNewMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const messagesEndRef = useRef(null);
 
   useEffect(() => {
     if (loading || !currentUser) return;
-
-    const storedConversations = JSON.parse(localStorage.getItem(`founderMatchChats_${currentUser.id}`) || '{}');
     
-    const allUsers = JSON.parse(localStorage.getItem('founderMatchUsers') || '[]');
+    fetchConversations();
+    const subscription = setupMessagesSubscription();
     
-    const formattedConversations = Object.entries(storedConversations).map(([otherUserId, messages]) => {
-      const otherUser = allUsers.find(u => u.id === otherUserId);
-      return {
-        id: otherUserId,
-        name: otherUser ? otherUser.name : 'Unknown User',
-        avatarFallback: otherUser ? otherUser.name.charAt(0).toUpperCase() : 'U',
-        messages: messages,
-        lastMessage: messages.length > 0 ? messages[messages.length - 1] : { text: 'No messages yet', timestamp: '' },
-      };
-    }).sort((a, b) => new Date(b.lastMessage.timestamp || 0) - new Date(a.lastMessage.timestamp || 0));
-
-    setConversations(formattedConversations);
+    return () => {
+      subscription?.unsubscribe();
+    };
   }, [currentUser, loading]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [selectedConversation]);
+
+  const fetchConversations = async () => {
+    try {
+      // Get all messages for the current user
+      const { data: messages, error } = await supabase
+        .from('messages')
+        .select(`
+          *,
+          sender:profiles!messages_sender_id_fkey(*),
+          receiver:profiles!messages_receiver_id_fkey(*)
+        `)
+        .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`);
+
+      if (error) throw error;
+
+      // Group messages by conversation
+      const conversationsMap = messages.reduce((acc, message) => {
+        const otherUser = message.sender_id === currentUser.id ? message.receiver : message.sender;
+        const conversationId = otherUser.id;
+
+        if (!acc[conversationId]) {
+          acc[conversationId] = {
+            id: conversationId,
+            name: otherUser.name,
+            messages: [],
+            lastMessage: null
+          };
+        }
+
+        acc[conversationId].messages.push(message);
+        if (!acc[conversationId].lastMessage || message.created_at > acc[conversationId].lastMessage.created_at) {
+          acc[conversationId].lastMessage = message;
+        }
+
+        return acc;
+      }, {});
+
+      setConversations(Object.values(conversationsMap)
+        .sort((a, b) => new Date(b.lastMessage?.created_at || 0) - new Date(a.lastMessage?.created_at || 0))
+      );
+    } catch (error) {
+      console.error('Error fetching conversations:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load conversations. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const setupMessagesSubscription = () => {
+    return supabase
+      .channel('messages')
+      .on('postgres_changes', 
+        {
+          event: '*',
+          schema: 'public',
+          table: 'messages',
+          filter: `sender_id=eq.${currentUser.id} OR receiver_id=eq.${currentUser.id}`
+        },
+        (payload) => {
+          handleMessageChange(payload);
+        }
+      )
+      .subscribe();
+  };
+
+  const handleMessageChange = (payload) => {
+    if (payload.eventType === 'INSERT') {
+      const newMessage = payload.new;
+      setConversations(prevConversations => {
+        const conversationId = newMessage.sender_id === currentUser.id 
+          ? newMessage.receiver_id 
+          : newMessage.sender_id;
+
+        const existingConversation = prevConversations.find(c => c.id === conversationId);
+        if (existingConversation) {
+          return prevConversations.map(conv => {
+            if (conv.id === conversationId) {
+              return {
+                ...conv,
+                messages: [...conv.messages, newMessage],
+                lastMessage: newMessage
+              };
+            }
+            return conv;
+          }).sort((a, b) => new Date(b.lastMessage?.created_at || 0) - new Date(a.lastMessage?.created_at || 0));
+        }
+        
+        // If it's a new conversation, fetch the complete conversation data
+        fetchConversations();
+        return prevConversations;
+      });
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !selectedConversation) return;
+
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .insert([
+          {
+            sender_id: currentUser.id,
+            receiver_id: selectedConversation.id,
+            content: newMessage.trim(),
+            created_at: new Date().toISOString()
+          }
+        ]);
+
+      if (error) throw error;
+
+      setNewMessage('');
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
 
   const handleSelectConversation = (conv) => {
     setSelectedConversation(conv);
   };
 
-  const handleSendMessage = () => {
-    if (!newMessage.trim() || !selectedConversation || !currentUser) return;
+  const handleDeleteConversation = async (conversationId) => {
+    try {
+      // Delete all messages in the conversation
+      const { error } = await supabase
+        .from('messages')
+        .delete()
+        .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${conversationId}),and(sender_id.eq.${conversationId},receiver_id.eq.${currentUser.id})`);
 
-    const message = {
-      id: Date.now().toString(),
-      text: newMessage,
-      senderId: currentUser.id,
-      timestamp: new Date().toISOString(),
-    };
+      if (error) throw error;
 
-    const updatedConversations = conversations.map(conv => {
-      if (conv.id === selectedConversation.id) {
-        return { ...conv, messages: [...conv.messages, message], lastMessage: message };
+      // Update local state
+      const updatedConversations = conversations.filter(conv => conv.id !== conversationId);
+      setConversations(updatedConversations);
+
+      if (selectedConversation && selectedConversation.id === conversationId) {
+        setSelectedConversation(null);
       }
-      return conv;
-    });
-    setConversations(updatedConversations.sort((a, b) => new Date(b.lastMessage.timestamp) - new Date(a.lastMessage.timestamp)));
-    
-    const storedChats = JSON.parse(localStorage.getItem(`founderMatchChats_${currentUser.id}`) || '{}');
-    const currentChatHistory = storedChats[selectedConversation.id] || [];
-    storedChats[selectedConversation.id] = [...currentChatHistory, message];
-    localStorage.setItem(`founderMatchChats_${currentUser.id}`, JSON.stringify(storedChats));
 
-    // Simulate receiving a reply for demo purposes
-    setTimeout(() => {
-      const replyMessage = {
-        id: (Date.now() + 1).toString(),
-        text: `Thanks for your message! I'll get back to you.`,
-        senderId: selectedConversation.id,
-        timestamp: new Date().toISOString(),
-      };
-       const updatedConversationsWithReply = updatedConversations.map(conv => {
-        if (conv.id === selectedConversation.id) {
-          return { ...conv, messages: [...conv.messages, replyMessage], lastMessage: replyMessage };
-        }
-        return conv;
+      toast({
+        title: 'Conversation Deleted',
+        description: 'The chat history has been removed.',
+        variant: 'destructive',
       });
-      setConversations(updatedConversationsWithReply.sort((a, b) => new Date(b.lastMessage.timestamp) - new Date(a.lastMessage.timestamp)));
-      
-      const storedChatsReply = JSON.parse(localStorage.getItem(`founderMatchChats_${currentUser.id}`) || '{}');
-      const currentChatHistoryReply = storedChatsReply[selectedConversation.id] || [];
-      storedChatsReply[selectedConversation.id] = [...currentChatHistoryReply, replyMessage];
-      localStorage.setItem(`founderMatchChats_${currentUser.id}`, JSON.stringify(storedChatsReply));
-      
-      setSelectedConversation(prev => prev ? {...prev, messages: [...prev.messages, replyMessage]} : null);
-
-    }, 1500);
-
-
-    setNewMessage('');
-    toast({
-      title: 'Message Sent!',
-      description: `Your message to ${selectedConversation.name} has been sent.`,
-    });
-  };
-
-  const handleDeleteConversation = (conversationId) => {
-    const updatedConversations = conversations.filter(conv => conv.id !== conversationId);
-    setConversations(updatedConversations);
-
-    const storedChats = JSON.parse(localStorage.getItem(`founderMatchChats_${currentUser.id}`) || '{}');
-    delete storedChats[conversationId];
-    localStorage.setItem(`founderMatchChats_${currentUser.id}`, JSON.stringify(storedChats));
-
-    if (selectedConversation && selectedConversation.id === conversationId) {
-      setSelectedConversation(null);
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete conversation. Please try again.",
+        variant: "destructive"
+      });
     }
-    toast({
-      title: 'Conversation Deleted',
-      description: 'The chat history has been removed.',
-      variant: 'destructive',
-    });
   };
 
   const filteredConversations = conversations.filter(conv =>
@@ -300,14 +381,14 @@ const ChatPage = () => {
                     onKeyPress={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
-                        handleSendMessage();
+                        sendMessage();
                       }
                     }}
                     className="flex-1 resize-none"
                     rows={1}
                   />
                   <Button 
-                    onClick={handleSendMessage} 
+                    onClick={sendMessage} 
                     className="gradient-bg text-white"
                     disabled={!newMessage.trim()}
                   >

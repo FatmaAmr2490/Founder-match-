@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useContext } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -6,8 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
-import { Users, MessageCircle, User, Mail, GraduationCap, Briefcase, Heart, Clock, ArrowLeft, LogOut, MessageSquare as ChatIcon } from 'lucide-react'; // Added ChatIcon
+import { Users, MessageCircle, User, Mail, GraduationCap, Briefcase, Heart, Clock, ArrowLeft, LogOut, MessageSquare as ChatIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 
 const DashboardPage = () => {
   const navigate = useNavigate();
@@ -16,54 +16,69 @@ const DashboardPage = () => {
   const [matches, setMatches] = useState([]);
 
   useEffect(() => {
-    if (loading) return; 
+    if (loading) return;
 
     if (!currentUser) {
       navigate('/signup');
       return;
     }
 
-    const allUsers = JSON.parse(localStorage.getItem('founderMatchUsers') || '[]');
-    const otherUsers = allUsers.filter(u => u.id !== currentUser.id && u.name && u.skills && u.interests);
-    
-    const userMatches = otherUsers.map(otherUser => ({
-      ...otherUser,
-      matchScore: calculateMatchScore(currentUser, otherUser)
-    })).sort((a, b) => b.matchScore - a.matchScore).slice(0, 6);
-
-    setMatches(userMatches);
+    fetchMatches();
   }, [navigate, currentUser, loading]);
 
   const calculateMatchScore = (user1, user2) => {
     let score = 0;
     
-    if (!user1 || !user2) return 0;
-    if (!user1.skills || !user2.skills) return 0;
-    if (!user1.interests || !user2.interests) return 0;
-
-    const user1Skills = user1.skills.toLowerCase().split(',').map(s => s.trim()).filter(s => s);
-    const user2Skills = user2.skills.toLowerCase().split(',').map(s => s.trim()).filter(s => s);
-    
-    const user1Interests = user1.interests.toLowerCase().split(',').map(s => s.trim()).filter(s => s);
-    const user2Interests = user2.interests.toLowerCase().split(',').map(s => s.trim()).filter(s => s);
-
-    if (user1Skills.length === 0 || user1Interests.length === 0) return 0;
-
-    const sharedInterests = user1Interests.filter(interest => 
-      user2Interests.some(otherInterest => otherInterest.includes(interest) || interest.includes(otherInterest))
-    );
+    // Shared interests (25 points each)
+    const user1Interests = user1.interests?.toLowerCase().split(',').map(i => i.trim()) || [];
+    const user2Interests = user2.interests?.toLowerCase().split(',').map(i => i.trim()) || [];
+    const sharedInterests = user1Interests.filter(interest => user2Interests.includes(interest));
     score += sharedInterests.length * 25;
 
-    const user1UniqueSkills = user1Skills.filter(skill => !user2Skills.includes(skill));
-    const user2UniqueSkills = user2Skills.filter(skill => !user1Skills.includes(skill));
+    // Complementary skills (35 points for mutual unique skills, 15 for one-sided)
+    const user1Skills = user1.skills?.toLowerCase().split(',').map(s => s.trim()) || [];
+    const user2Skills = user2.skills?.toLowerCase().split(',').map(s => s.trim()) || [];
+    const uniqueSkills1 = user1Skills.filter(skill => !user2Skills.includes(skill));
+    const uniqueSkills2 = user2Skills.filter(skill => !user1Skills.includes(skill));
     
-    if (user1UniqueSkills.length > 0 && user2UniqueSkills.length > 0) {
-        score += 35;
-    } else if (user1UniqueSkills.length > 0 || user2UniqueSkills.length > 0) {
-        score += 15;
+    if (uniqueSkills1.length > 0 && uniqueSkills2.length > 0) {
+      score += 35; // They have complementary skills
+    } else if (uniqueSkills1.length > 0 || uniqueSkills2.length > 0) {
+      score += 15; // One person has unique skills
     }
 
-    return Math.min(100, Math.max(0, Math.round(score)));
+    // Cap the total score at 100
+    return Math.min(score, 100);
+  };
+
+  const fetchMatches = async () => {
+    try {
+      // Get all users except current user
+      const { data: users, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .neq('id', currentUser.id);
+
+      if (error) throw error;
+
+      // Calculate match scores
+      const matchesWithScores = users
+        .map(user => ({
+          ...user,
+          matchScore: calculateMatchScore(currentUser, user)
+        }))
+        .sort((a, b) => b.matchScore - a.matchScore)
+        .slice(0, 6); // Get top 6 matches
+
+      setMatches(matchesWithScores);
+    } catch (error) {
+      console.error('Error fetching matches:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load matches. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleInitiateChat = (matchUser) => {

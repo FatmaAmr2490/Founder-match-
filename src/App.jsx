@@ -7,6 +7,7 @@ import SignupPage from '@/pages/SignupPage';
 import LoginPage from '@/pages/LoginPage';
 import DashboardPage from '@/pages/DashboardPage';
 import AdminPage from '@/pages/AdminPage';
+import AdminUsersPage from '@/pages/AdminUsersPage';
 import ChatPage from '@/pages/ChatPage';
 import PrivacyPolicyPage from '@/pages/PrivacyPolicyPage'; // New import
 import TermsOfServicePage from '@/pages/TermsOfServicePage'; // New import

@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
 
 const AuthContext = createContext(null);
 
@@ -9,88 +10,152 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const checkLoginStatus = () => {
-    const storedUser = localStorage.getItem('currentUser');
-    const storedIsAdmin = localStorage.getItem('isAdmin') === 'true';
-    
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        // We don't store password in currentUser state for security,
-        // but it was saved during signup.
-        // For login, we'd check against the full user record from localStorage.
-        setCurrentUser(parsedUser); 
-      } catch (error) {
-        console.error("Failed to parse stored user:", error);
-        localStorage.removeItem('currentUser');
-      }
-    }
-    setIsAdmin(storedIsAdmin);
-    setLoading(false);
-  };
-
   useEffect(() => {
-    checkLoginStatus();
+    // Check active session
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthChange);
+    checkUser(); // Check current user on mount
+
+    return () => {
+      subscription?.unsubscribe();
+    };
   }, []);
 
-  const signup = (userDataWithPassword) => {
-    // In a real app, password would be hashed here before saving.
-    // For localStorage, we save it as is for this demo.
-    const users = JSON.parse(localStorage.getItem('founderMatchUsers') || '[]');
-    users.push(userDataWithPassword);
-    localStorage.setItem('founderMatchUsers', JSON.stringify(users));
-
-    const { password, ...userDataToStore } = userDataWithPassword; // Don't store password in active currentUser state
-
-    setCurrentUser(userDataToStore);
-    localStorage.setItem('currentUser', JSON.stringify(userDataToStore));
-    
-    const isAdminUser = userDataWithPassword.email === 'admin@foundermatch.com';
-    if (isAdminUser) {
-      setIsAdmin(true);
-      localStorage.setItem('isAdmin', 'true');
-    }
-    return { success: true, isAdmin: isAdminUser };
-  };
-
-  const login = (email, password) => {
-    const users = JSON.parse(localStorage.getItem('founderMatchUsers') || '[]');
-    const userFound = users.find(user => user.email === email && user.password === password);
-
-    if (userFound) {
-      const { password: _, ...userDataToStore } = userFound; // Don't store password in active currentUser state
-      setCurrentUser(userDataToStore);
-      localStorage.setItem('currentUser', JSON.stringify(userDataToStore));
+  const checkUser = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
       
-      const isAdminUser = userFound.email === 'admin@foundermatch.com';
-      if (isAdminUser) {
-        setIsAdmin(true);
-        localStorage.setItem('isAdmin', 'true');
+      if (user) {
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (error) throw error;
+
+        if (profile) {
+          setCurrentUser({ ...user, ...profile });
+          setIsAdmin(profile.is_admin || false);
+        } else {
+          setCurrentUser(null);
+          setIsAdmin(false);
+        }
       } else {
+        setCurrentUser(null);
         setIsAdmin(false);
-        localStorage.removeItem('isAdmin'); // Ensure isAdmin is false if not admin
       }
-      return { success: true, isAdmin: isAdminUser };
+    } catch (error) {
+      console.error('Error checking user:', error);
+      setCurrentUser(null);
+      setIsAdmin(false);
+    } finally {
+      setLoading(false);
     }
-    return { success: false, message: "Invalid email or password." };
   };
 
-  const logout = () => {
-    setCurrentUser(null);
-    setIsAdmin(false);
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('isAdmin');
-    navigate('/');
+  const handleAuthChange = async (event, session) => {
+    if (event === 'SIGNED_IN') {
+      await checkUser();
+    } else if (event === 'SIGNED_OUT') {
+      setCurrentUser(null);
+      setIsAdmin(false);
+    }
+  };
+
+  const signup = async (userData) => {
+    try {
+      // Create auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: userData.email,
+        password: userData.password,
+      });
+
+      if (authError) throw authError;
+
+      const isAdminEmail = userData.email === 'admin@foundermatch.com';
+
+      // Create profile
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert([
+          {
+            id: authData.user.id,
+            name: userData.name,
+            university: userData.university,
+            skills: userData.skills,
+            interests: userData.interests,
+            availability: userData.availability,
+            bio: userData.bio,
+            is_admin: isAdminEmail,
+            created_at: new Date().toISOString()
+          }
+        ]);
+
+      if (profileError) throw profileError;
+
+      await checkUser();
+      return { success: true, isAdmin: isAdminEmail };
+    } catch (error) {
+      console.error('Error signing up:', error);
+      return { success: false, message: error.message };
+    }
+  };
+
+  const login = async (email, password) => {
+    try {
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (authError) throw authError;
+
+      // Check if user exists and is admin
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+
+      if (profileError) throw profileError;
+
+      setCurrentUser({ ...data.user, ...profile });
+      setIsAdmin(profile.is_admin || false);
+
+      return { success: true, isAdmin: profile.is_admin || false };
+    } catch (error) {
+      console.error('Error logging in:', error);
+      return { success: false, message: error.message };
+    }
+  };
+
+  const logout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      setCurrentUser(null);
+      setIsAdmin(false);
+      navigate('/');
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
   };
   
   const checkAdmin = () => {
-    // This check can remain as is, or rely on isAdmin state which is set during login/signup
-    return isAdmin || (currentUser && currentUser.email === 'admin@foundermatch.com');
+    return isAdmin || (currentUser?.is_admin || false);
   };
 
-
   return (
-    <AuthContext.Provider value={{ currentUser, isAdmin, login, logout, signup, loading, checkAdmin, checkLoginStatus }}>
+    <AuthContext.Provider value={{ 
+      currentUser, 
+      isAdmin, 
+      login, 
+      logout, 
+      signup, 
+      loading,
+      checkUser
+    }}>
       {!loading && children}
     </AuthContext.Provider>
   );

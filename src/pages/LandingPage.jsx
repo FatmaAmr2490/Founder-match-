@@ -61,13 +61,22 @@ const LandingPage = () => {
           {currentUser ? (
             <>
               {isAdmin ? (
-                <Button 
-                  variant="ghost" 
-                  onClick={() => navigate('/admin')}
-                  className="text-gray-600 hover:text-red-600"
-                >
-                  <Shield className="h-4 w-4 mr-2" /> Admin
-                </Button>
+                <>
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => navigate('/admin')}
+                    className="text-gray-600 hover:text-red-600"
+                  >
+                    <Shield className="h-4 w-4 mr-2" /> Admin Panel
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => navigate('/admin/users')}
+                    className="text-gray-600 hover:text-red-600"
+                  >
+                    <Users className="h-4 w-4 mr-2" /> Manage Users
+                  </Button>
+                </>
               ) : (
                 <Button 
                   variant="ghost" 
