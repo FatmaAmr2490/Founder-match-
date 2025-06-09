@@ -87,42 +87,43 @@ const HelpCenter = () => {
         return;
       }
 
-      // If no matching question, use AI response
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a helpful assistant for FounderMatch, a platform that helps entrepreneurs find co-founders. Provide concise, helpful answers about entrepreneurship, co-founder matching, and startup-related topics.'
-            },
-            {
-              role: 'user',
-              content: userMessage
+      // If no matching question, use the open-source AI model
+      const response = await fetch(
+        "https://api-inference.huggingface.co/models/facebook/blenderbot-400M-distill",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            inputs: {
+              text: `You are a helpful assistant for FounderMatch, a platform that helps entrepreneurs find co-founders. 
+              Please provide a helpful answer about ${userMessage}. 
+              Keep the response focused on entrepreneurship, co-founder matching, and startup-related topics.`,
+              max_length: 150
             }
-          ],
-          max_tokens: 150
-        })
-      });
+          }),
+        }
+      );
 
       if (!response.ok) {
         throw new Error('Failed to get AI response');
       }
 
       const data = await response.json();
-      const aiMessage = data.choices[0].message.content;
+      let aiMessage = data.generated_text || data[0]?.generated_text;
+
+      // Clean up the response
+      aiMessage = aiMessage
+        .replace(/^(bot:|human:|assistant:|user:)/gi, '')
+        .trim();
 
       setMessages(prev => [...prev, { role: 'assistant', content: aiMessage }]);
     } catch (error) {
       console.error('Error sending message:', error);
       toast({
         title: "Error",
-        description: "Failed to get a response. Please try again.",
+        description: "Failed to get a response. Please try asking one of the common questions above.",
         variant: "destructive"
       });
       // Fallback to a generic response
