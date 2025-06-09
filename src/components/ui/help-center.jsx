@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { HelpCircle, X, Search, Bot } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 
 const commonQuestions = [
   {
@@ -60,6 +61,9 @@ const HelpCenter = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedQuestion, setSelectedQuestion] = useState(null);
+  const location = useLocation();
+
+  const isInChat = location.pathname === '/chat';
 
   const filteredQuestions = commonQuestions.filter(q =>
     q.q.toLowerCase().includes(searchTerm.toLowerCase())
@@ -69,16 +73,16 @@ const HelpCenter = () => {
     <>
       {/* Floating Help Button */}
       <motion.div
-        className="fixed top-6 right-6 z-50"
+        className={`fixed ${isInChat ? 'top-6' : 'bottom-6'} right-6 z-50`}
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
         transition={{ type: "spring", stiffness: 260, damping: 20 }}
       >
         <Button
-          className="w-12 h-12 rounded-full gradient-bg text-white shadow-xl hover:shadow-2xl"
+          className={`${isInChat ? 'w-12 h-12' : 'w-14 h-14'} rounded-full gradient-bg text-white shadow-xl hover:shadow-2xl`}
           onClick={() => setIsOpen(true)}
         >
-          <HelpCircle className="w-5 h-5" />
+          <HelpCircle className={`${isInChat ? 'w-5 h-5' : 'w-6 h-6'}`} />
         </Button>
       </motion.div>
 
@@ -97,10 +101,10 @@ const HelpCenter = () => {
 
             {/* Help Center Card */}
             <motion.div
-              className="fixed top-24 right-6 w-full max-w-md z-50"
-              initial={{ opacity: 0, y: -100, scale: 0.9 }}
+              className={`fixed ${isInChat ? 'top-24' : 'bottom-24'} right-6 w-full max-w-md z-50`}
+              initial={{ opacity: 0, y: isInChat ? -100 : 100, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -100, scale: 0.9 }}
+              exit={{ opacity: 0, y: isInChat ? -100 : 100, scale: 0.9 }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
             >
               <Card className="shadow-2xl border-2">
