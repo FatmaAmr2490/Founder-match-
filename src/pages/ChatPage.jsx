@@ -45,23 +45,24 @@ const ChatPage = () => {
     };
 
     fetchReceiverProfile();
-    loadMessages();
+    loadMessages(true); // Reset messages when changing chat
 
     // Subscribe to new messages
     const channel = supabase
       .channel('chat-messages')
       .on('postgres_changes', {
-        event: 'INSERT',
+        event: '*', // Listen to all events
         schema: 'public',
         table: 'messages',
-        filter: `sender_id=eq.${user.id},receiver_id=eq.${receiverId}`,
-      }, handleNewMessage)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'messages',
-        filter: `sender_id=eq.${receiverId},receiver_id=eq.${user.id}`,
-      }, handleNewMessage)
+        filter: `sender_id.eq.${user.id}.or.receiver_id.eq.${user.id}`,
+      }, (payload) => {
+        // Only handle messages relevant to this chat
+        const msg = payload.new;
+        if ((msg.sender_id === user.id && msg.receiver_id === receiverId) ||
+            (msg.sender_id === receiverId && msg.receiver_id === user.id)) {
+          handleNewMessage(payload);
+        }
+      })
       .subscribe();
 
     return () => {
@@ -77,7 +78,11 @@ const ChatPage = () => {
       const currentPage = reset ? 1 : page;
       const { messages: newMessages, hasMore: moreMessages } = await getMessages(user.id, receiverId, currentPage);
 
-      setMessages(prev => reset ? newMessages : [...prev, ...newMessages]);
+      if (reset) {
+        setMessages(newMessages);
+      } else {
+        setMessages(prev => [...prev, ...newMessages]);
+      }
       setHasMore(moreMessages);
       setPage(currentPage + 1);
     } catch (error) {
@@ -94,11 +99,19 @@ const ChatPage = () => {
 
   const handleNewMessage = (payload) => {
     const newMsg = payload.new;
-    setMessages(prev => [...prev, {
-      ...newMsg,
-      sender_name: newMsg.sender_id === user.id ? user.name : receiverProfile?.name,
-      receiver_name: newMsg.receiver_id === user.id ? user.name : receiverProfile?.name
-    }]);
+    if (!newMsg) return;
+
+    // Add the message only if it's not already in the list
+    setMessages(prev => {
+      const messageExists = prev.some(msg => msg.id === newMsg.id);
+      if (messageExists) return prev;
+
+      return [...prev, {
+        ...newMsg,
+        sender_name: newMsg.sender_id === user.id ? user.name : receiverProfile?.name,
+        receiver_name: newMsg.receiver_id === user.id ? user.name : receiverProfile?.name
+      }];
+    });
   };
 
   const handleSend = async (e) => {
@@ -107,7 +120,7 @@ const ChatPage = () => {
 
     try {
       setSending(true);
-      const message = await sendMessage(user.id, receiverId, newMessage.trim());
+      await sendMessage(user.id, receiverId, newMessage.trim());
       setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);

@@ -24,159 +24,170 @@ DROP TABLE IF EXISTS profiles;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Create profiles table
-CREATE TABLE profiles (
+CREATE TABLE IF NOT EXISTS profiles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    university VARCHAR(255),
-    skills TEXT[] DEFAULT '{}',
-    interests TEXT[] DEFAULT '{}',
-    availability VARCHAR(50),
+    auth_id UUID UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
+    email TEXT UNIQUE NOT NULL,
+    name TEXT,
+    university TEXT,
+    skills TEXT[],
+    interests TEXT[],
+    availability TEXT,
     bio TEXT,
-    is_admin BOOLEAN DEFAULT FALSE,
+    is_admin BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    auth_id UUID REFERENCES auth.users(id) ON DELETE CASCADE
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Create matches table
-CREATE TABLE matches (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    user1_id UUID NOT NULL,
-    user2_id UUID NOT NULL,
+CREATE TABLE IF NOT EXISTS matches (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user1_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+    user2_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
     match_score INTEGER NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT fk_user1
-        FOREIGN KEY (user1_id)
-        REFERENCES profiles(id)
-        ON DELETE CASCADE,
-    CONSTRAINT fk_user2
-        FOREIGN KEY (user2_id)
-        REFERENCES profiles(id)
-        ON DELETE CASCADE,
-    CONSTRAINT unique_match
-        UNIQUE(user1_id, user2_id)
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user1_id, user2_id)
 );
 
 -- Create messages table
-CREATE TABLE messages (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    sender_id UUID NOT NULL,
-    receiver_id UUID NOT NULL,
+CREATE TABLE IF NOT EXISTS messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    sender_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+    receiver_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
     content TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT fk_sender
-        FOREIGN KEY (sender_id)
-        REFERENCES profiles(id)
-        ON DELETE CASCADE,
-    CONSTRAINT fk_receiver
-        FOREIGN KEY (receiver_id)
-        REFERENCES profiles(id)
-        ON DELETE CASCADE
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);
 CREATE INDEX IF NOT EXISTS idx_profiles_auth_id ON profiles(auth_id);
-CREATE INDEX IF NOT EXISTS idx_matches_user1 ON matches(user1_id);
-CREATE INDEX IF NOT EXISTS idx_matches_user2 ON matches(user2_id);
+CREATE INDEX IF NOT EXISTS idx_matches_users ON matches(user1_id, user2_id);
 CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
 CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_id);
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
+
+-- Create function to handle updated_at
+CREATE OR REPLACE FUNCTION handle_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create triggers for updated_at
+DROP TRIGGER IF EXISTS set_profiles_updated_at ON profiles;
+CREATE TRIGGER set_profiles_updated_at
+    BEFORE UPDATE ON profiles
+    FOR EACH ROW
+    EXECUTE FUNCTION handle_updated_at();
+
+DROP TRIGGER IF EXISTS set_matches_updated_at ON matches;
+CREATE TRIGGER set_matches_updated_at
+    BEFORE UPDATE ON matches
+    FOR EACH ROW
+    EXECUTE FUNCTION handle_updated_at();
+
+DROP TRIGGER IF EXISTS set_messages_updated_at ON messages;
+CREATE TRIGGER set_messages_updated_at
+    BEFORE UPDATE ON messages
+    FOR EACH ROW
+    EXECUTE FUNCTION handle_updated_at();
 
 -- Enable Row Level Security
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE matches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 
--- Create policies for profiles table
-CREATE POLICY "Profiles are viewable by everyone"
-ON profiles FOR SELECT
-USING (true);
+-- Drop existing policies
+DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
+DROP POLICY IF EXISTS "Users can delete own profile" ON profiles;
+DROP POLICY IF EXISTS "Users can view their own matches" ON matches;
+DROP POLICY IF EXISTS "Users can create matches" ON matches;
+DROP POLICY IF EXISTS "Users can view their own messages" ON messages;
+DROP POLICY IF EXISTS "Users can send messages" ON messages;
+DROP POLICY IF EXISTS "Users can delete their own messages" ON messages;
 
-CREATE POLICY "Users can create their own profile"
-ON profiles FOR INSERT
-WITH CHECK (
-    -- Allow during signup
-    (auth.uid() IS NULL AND auth.role() = 'anon') 
-    OR 
-    -- Allow authenticated users to create their profile
-    (auth.uid() IS NOT NULL AND auth.uid()::text = id::text)
-);
+-- Create policies for profiles
+CREATE POLICY "Public profiles are viewable by everyone"
+    ON profiles FOR SELECT
+    USING (true);
 
-CREATE POLICY "Users can update their own profile"
-ON profiles FOR UPDATE
-USING (auth.uid()::text = id::text);
+CREATE POLICY "Users can update own profile"
+    ON profiles FOR UPDATE
+    USING (auth.uid() = auth_id);
 
-CREATE POLICY "Users can delete their own profile"
-ON profiles FOR DELETE
-USING (auth.uid()::text = id::text);
+CREATE POLICY "Users can delete own profile"
+    ON profiles FOR DELETE
+    USING (auth.uid() = auth_id);
 
--- Create policies for matches table
+-- Create policies for matches
 CREATE POLICY "Users can view their own matches"
-ON matches FOR SELECT
-USING (
-    EXISTS (
-        SELECT 1 FROM profiles
-        WHERE (profiles.id = matches.user1_id OR profiles.id = matches.user2_id)
-        AND profiles.auth_id = auth.uid()
-    )
-);
+    ON matches FOR SELECT
+    USING (
+        auth.uid() IN (
+            SELECT auth_id FROM profiles WHERE id = user1_id
+            UNION
+            SELECT auth_id FROM profiles WHERE id = user2_id
+        )
+    );
 
 CREATE POLICY "Users can create matches"
-ON matches FOR INSERT
-WITH CHECK (
-    EXISTS (
-        SELECT 1 FROM profiles
-        WHERE (profiles.id = user1_id OR profiles.id = user2_id)
-        AND profiles.auth_id = auth.uid()
-    )
-);
+    ON matches FOR INSERT
+    WITH CHECK (
+        auth.uid() IN (
+            SELECT auth_id FROM profiles WHERE id = user1_id
+            UNION
+            SELECT auth_id FROM profiles WHERE id = user2_id
+        )
+    );
 
-CREATE POLICY "Users can delete their matches"
-ON matches FOR DELETE
-USING (
-    EXISTS (
-        SELECT 1 FROM profiles
-        WHERE (profiles.id = matches.user1_id OR profiles.id = matches.user2_id)
-        AND profiles.auth_id = auth.uid()
-    )
-);
-
--- Create policies for messages table
+-- Create policies for messages
 CREATE POLICY "Users can view their own messages"
-ON messages FOR SELECT
-USING (
-    EXISTS (
-        SELECT 1 FROM profiles
-        WHERE (profiles.id = messages.sender_id OR profiles.id = messages.receiver_id)
-        AND profiles.auth_id = auth.uid()
-    )
-);
+    ON messages FOR SELECT
+    USING (
+        auth.uid() IN (
+            SELECT auth_id FROM profiles WHERE id = sender_id
+            UNION
+            SELECT auth_id FROM profiles WHERE id = receiver_id
+        )
+    );
 
 CREATE POLICY "Users can send messages"
-ON messages FOR INSERT
-WITH CHECK (
-    EXISTS (
-        SELECT 1 FROM profiles
-        WHERE profiles.id = sender_id
-        AND profiles.auth_id = auth.uid()
-    )
-);
+    ON messages FOR INSERT
+    WITH CHECK (
+        auth.uid() = (SELECT auth_id FROM profiles WHERE id = sender_id)
+    );
 
-CREATE POLICY "Users can delete their messages"
-ON messages FOR DELETE
-USING (
-    EXISTS (
-        SELECT 1 FROM profiles
-        WHERE profiles.id = messages.sender_id
-        AND profiles.auth_id = auth.uid()
-    )
-);
+CREATE POLICY "Users can delete their own messages"
+    ON messages FOR DELETE
+    USING (
+        auth.uid() = (SELECT auth_id FROM profiles WHERE id = sender_id)
+    );
+
+-- Create function to handle user creation
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.profiles (auth_id, email)
+    VALUES (NEW.id, NEW.email);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create trigger for new user creation
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION handle_new_user();
 
 -- Grant necessary permissions
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
 
 -- Reset sequences if they exist
 ALTER SEQUENCE IF EXISTS matches_id_seq RESTART WITH 1;

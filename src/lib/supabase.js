@@ -189,22 +189,17 @@ export const getMessages = async (userId1, userId2, page = 1, pageSize = 20) => 
   try {
     const { data, error, count } = await supabase
       .from('messages')
-      .select(`
-        *,
-        sender:profiles!messages_sender_id_fkey(id, name, email, auth_id),
-        receiver:profiles!messages_receiver_id_fkey(id, name, email, auth_id)
-      `, { count: 'exact' })
+      .select('*', { count: 'exact' })
       .or(`and(sender_id.eq.${userId1},receiver_id.eq.${userId2}),and(sender_id.eq.${userId2},receiver_id.eq.${userId1})`)
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: true })
       .range(from, to);
 
     if (error) throw error;
 
     return { 
-      messages: data.reverse().map(msg => ({
+      messages: data.map(msg => ({
         ...msg,
-        sender_name: msg.sender?.name || msg.sender?.email || 'Unknown User',
-        receiver_name: msg.receiver?.name || msg.receiver?.email || 'Unknown User'
+        created_at: new Date(msg.created_at).toISOString()
       })), 
       totalCount: count,
       hasMore: count > (page * pageSize)
@@ -217,29 +212,21 @@ export const getMessages = async (userId1, userId2, page = 1, pageSize = 20) => 
 
 export const sendMessage = async (senderId, receiverId, content) => {
   try {
+    const messageData = {
+      sender_id: senderId,
+      receiver_id: receiverId,
+      content,
+      created_at: new Date().toISOString()
+    };
+
     const { data, error } = await supabase
       .from('messages')
-      .insert([
-        {
-          sender_id: senderId,
-          receiver_id: receiverId,
-          content,
-        }
-      ])
-      .select(`
-        *,
-        sender:profiles!messages_sender_id_fkey(id, name, email),
-        receiver:profiles!messages_receiver_id_fkey(id, name, email)
-      `)
+      .insert([messageData])
+      .select()
       .single();
 
     if (error) throw error;
-    
-    return {
-      ...data,
-      sender_name: data.sender?.name || data.sender?.email || 'Unknown User',
-      receiver_name: data.receiver?.name || data.receiver?.email || 'Unknown User'
-    };
+    return data;
   } catch (error) {
     console.error('Error sending message:', error);
     throw error;
