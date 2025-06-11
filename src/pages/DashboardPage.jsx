@@ -30,6 +30,11 @@ const DashboardPage = () => {
   const calculateMatchScore = (user1, user2) => {
     let score = 0;
 
+    // Don't match users with themselves or with admins
+    if (user1.id === user2.id || user1.email === user2.email || user2.is_admin) {
+      return 0;
+    }
+
     // Compare skills (35 points max)
     if (user1.skills && user2.skills) {
       const skills1 = Array.isArray(user1.skills) ? user1.skills : [];
@@ -87,19 +92,25 @@ const DashboardPage = () => {
 
       // Get all profiles except current user
       const profiles = await getProfiles();
-      const otherProfiles = profiles.filter(profile => profile.id !== currentUser.id);
-      console.log('Found profiles:', otherProfiles);
+      const otherProfiles = profiles.filter(profile => 
+        profile.id !== currentUser.id && 
+        profile.email !== currentUser.email && 
+        !profile.is_admin // Exclude admin users from matches
+      );
+      console.log('Found potential matches:', otherProfiles);
 
       // Calculate match scores
       const matchesWithScores = await Promise.all(
         otherProfiles.map(async (profile) => {
           const score = calculateMatchScore(currentUser, profile);
           
-          // Create or update match in database
-          try {
-            await createMatch(currentUser.id, profile.id, score);
-          } catch (error) {
-            console.error('Error creating/updating match:', error);
+          // Create or update match in database if score is above threshold
+          if (score > 0) {  // Only create matches if there's some compatibility
+            try {
+              await createMatch(currentUser.id, profile.id, score);
+            } catch (error) {
+              console.error('Error creating/updating match:', error);
+            }
           }
           
           return {
@@ -109,8 +120,9 @@ const DashboardPage = () => {
         })
       );
 
-      // Sort by match score and get top matches
+      // Sort by match score and get top matches (exclude zero scores)
       const topMatches = matchesWithScores
+        .filter(match => match.matchScore > 0) // Only include matches with positive scores
         .sort((a, b) => b.matchScore - a.matchScore)
         .slice(0, 6);
 
