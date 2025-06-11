@@ -1,32 +1,18 @@
--- First, disable RLS to avoid any conflicts during setup
-ALTER TABLE IF EXISTS profiles DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS matches DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS messages DISABLE ROW LEVEL SECURITY;
+-- First, disable triggers temporarily
+SET session_replication_role = 'replica';
 
--- Drop existing policies
-DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON profiles;
-DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
-DROP POLICY IF EXISTS "Users can insert own profile" ON profiles;
-DROP POLICY IF EXISTS "Users can delete own profile" ON profiles;
-DROP POLICY IF EXISTS "Users can view their own matches" ON matches;
-DROP POLICY IF EXISTS "Users can create matches" ON matches;
-DROP POLICY IF EXISTS "Users can delete their matches" ON matches;
-DROP POLICY IF EXISTS "Users can view their own messages" ON messages;
-DROP POLICY IF EXISTS "Users can send messages" ON messages;
-DROP POLICY IF EXISTS "Users can delete their messages" ON messages;
+-- Drop existing tables if they exist (CAUTION: This will delete existing data)
+DROP TABLE IF EXISTS messages CASCADE;
+DROP TABLE IF EXISTS matches CASCADE;
+DROP TABLE IF EXISTS profiles CASCADE;
 
--- Drop existing tables
-DROP TABLE IF EXISTS messages;
-DROP TABLE IF EXISTS matches;
-DROP TABLE IF EXISTS profiles;
-
--- Enable UUID extension if not already enabled
+-- Enable necessary extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Create profiles table
-CREATE TABLE IF NOT EXISTS profiles (
+CREATE TABLE profiles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    auth_id UUID UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
+    auth_id UUID UNIQUE,
     email TEXT UNIQUE NOT NULL,
     name TEXT,
     university TEXT,
@@ -40,32 +26,36 @@ CREATE TABLE IF NOT EXISTS profiles (
 );
 
 -- Create matches table
-CREATE TABLE IF NOT EXISTS matches (
+CREATE TABLE matches (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user1_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-    user2_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+    user1_id UUID,
+    user2_id UUID,
     match_score INTEGER NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(user1_id, user2_id)
+    UNIQUE(user1_id, user2_id),
+    CONSTRAINT fk_user1 FOREIGN KEY (user1_id) REFERENCES profiles(id) ON DELETE CASCADE,
+    CONSTRAINT fk_user2 FOREIGN KEY (user2_id) REFERENCES profiles(id) ON DELETE CASCADE
 );
 
 -- Create messages table
-CREATE TABLE IF NOT EXISTS messages (
+CREATE TABLE messages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    sender_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-    receiver_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+    sender_id UUID,
+    receiver_id UUID,
     content TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT fk_sender FOREIGN KEY (sender_id) REFERENCES profiles(id) ON DELETE CASCADE,
+    CONSTRAINT fk_receiver FOREIGN KEY (receiver_id) REFERENCES profiles(id) ON DELETE CASCADE
 );
 
 -- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_profiles_auth_id ON profiles(auth_id);
-CREATE INDEX IF NOT EXISTS idx_matches_users ON matches(user1_id, user2_id);
-CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
-CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_id);
-CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
+CREATE INDEX idx_profiles_auth_id ON profiles(auth_id);
+CREATE INDEX idx_matches_users ON matches(user1_id, user2_id);
+CREATE INDEX idx_messages_sender ON messages(sender_id);
+CREATE INDEX idx_messages_receiver ON messages(receiver_id);
+CREATE INDEX idx_messages_created_at ON messages(created_at);
 
 -- Create function to handle updated_at
 CREATE OR REPLACE FUNCTION handle_updated_at()
@@ -127,20 +117,20 @@ CREATE POLICY "Users can delete own profile"
 CREATE POLICY "Users can view their own matches"
     ON matches FOR SELECT
     USING (
-        auth.uid() IN (
-            SELECT auth_id FROM profiles WHERE id = user1_id
-            UNION
-            SELECT auth_id FROM profiles WHERE id = user2_id
+        EXISTS (
+            SELECT 1 FROM profiles
+            WHERE (profiles.id = matches.user1_id OR profiles.id = matches.user2_id)
+            AND profiles.auth_id = auth.uid()
         )
     );
 
 CREATE POLICY "Users can create matches"
     ON matches FOR INSERT
     WITH CHECK (
-        auth.uid() IN (
-            SELECT auth_id FROM profiles WHERE id = user1_id
-            UNION
-            SELECT auth_id FROM profiles WHERE id = user2_id
+        EXISTS (
+            SELECT 1 FROM profiles
+            WHERE (profiles.id = user1_id OR profiles.id = user2_id)
+            AND profiles.auth_id = auth.uid()
         )
     );
 
@@ -148,23 +138,31 @@ CREATE POLICY "Users can create matches"
 CREATE POLICY "Users can view their own messages"
     ON messages FOR SELECT
     USING (
-        auth.uid() IN (
-            SELECT auth_id FROM profiles WHERE id = sender_id
-            UNION
-            SELECT auth_id FROM profiles WHERE id = receiver_id
+        EXISTS (
+            SELECT 1 FROM profiles
+            WHERE (profiles.id = messages.sender_id OR profiles.id = messages.receiver_id)
+            AND profiles.auth_id = auth.uid()
         )
     );
 
 CREATE POLICY "Users can send messages"
     ON messages FOR INSERT
     WITH CHECK (
-        auth.uid() = (SELECT auth_id FROM profiles WHERE id = sender_id)
+        EXISTS (
+            SELECT 1 FROM profiles
+            WHERE profiles.id = sender_id
+            AND profiles.auth_id = auth.uid()
+        )
     );
 
 CREATE POLICY "Users can delete their own messages"
     ON messages FOR DELETE
     USING (
-        auth.uid() = (SELECT auth_id FROM profiles WHERE id = sender_id)
+        EXISTS (
+            SELECT 1 FROM profiles
+            WHERE profiles.id = messages.sender_id
+            AND profiles.auth_id = auth.uid()
+        )
     );
 
 -- Create function to handle user creation
@@ -189,6 +187,5 @@ GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
 
--- Reset sequences if they exist
-ALTER SEQUENCE IF EXISTS matches_id_seq RESTART WITH 1;
-ALTER SEQUENCE IF EXISTS messages_id_seq RESTART WITH 1; 
+-- Re-enable triggers
+SET session_replication_role = 'origin'; 
