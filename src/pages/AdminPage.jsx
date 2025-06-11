@@ -32,12 +32,12 @@ const AdminPage = () => {
     try {
       setLoading(true);
       // Get users from localStorage
-      const storedUsers = JSON.parse(localStorage.getItem('founderMatchUsers') || '[]');
+    const storedUsers = JSON.parse(localStorage.getItem('founderMatchUsers') || '[]');
       console.log('Admin page - stored users:', storedUsers);
-      setUsers(storedUsers);
+    setUsers(storedUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
-      toast({
+    toast({
         title: "Error",
         description: "Failed to load users. Please try again.",
         variant: "destructive"

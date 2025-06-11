@@ -124,11 +124,11 @@ const ChatPage = () => {
       setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
-      toast({
+    toast({
         title: 'Error',
         description: 'Could not send message. Please try again.',
-        variant: 'destructive',
-      });
+      variant: 'destructive',
+    });
     } finally {
       setSending(false);
     }
@@ -149,13 +149,13 @@ const ChatPage = () => {
       </div>
     );
   }
-
+  
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white shadow-sm p-4 flex items-center">
-        <Button
-          variant="ghost"
+        <Button 
+          variant="ghost" 
           size="icon"
           className="mr-2"
           onClick={() => window.history.back()}
@@ -211,36 +211,36 @@ const ChatPage = () => {
                   <span className="text-xs opacity-70 mt-1 block">
                     {new Date(message.created_at).toLocaleTimeString()}
                   </span>
-                </div>
+                  </div>
               </motion.div>
             ))}
             <div ref={messagesEndRef} />
           </>
-        )}
-      </div>
+                )}
+              </div>
 
       {/* Message Input */}
       <form onSubmit={handleSend} className="p-4 bg-white shadow-lg">
         <div className="flex space-x-2">
           <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
             placeholder="Type your message..."
             className="flex-1"
             disabled={sending}
-          />
-          <Button
+                  />
+                  <Button 
             type="submit"
             disabled={!newMessage.trim() || sending}
-            className="gradient-bg text-white"
+                    className="gradient-bg text-white"
           >
             {sending ? (
               <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
             ) : (
               <Send className="h-5 w-5" />
             )}
-          </Button>
-        </div>
+                  </Button>
+                </div>
       </form>
     </div>
   );

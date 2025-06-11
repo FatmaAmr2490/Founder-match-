@@ -1,17 +1,21 @@
--- First, disable triggers and RLS temporarily
+-- Temporarily disable triggers and constraints
 SET session_replication_role = 'replica';
 
--- Drop existing tables and clean up
+-- Drop existing triggers, functions, and tables if any
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 DROP FUNCTION IF EXISTS handle_new_user CASCADE;
 DROP TABLE IF EXISTS messages CASCADE;
 DROP TABLE IF EXISTS matches CASCADE;
 DROP TABLE IF EXISTS profiles CASCADE;
 
--- Enable necessary extensions
+-- Enable necessary extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Create profiles table first, without constraints
+-- ============================
+-- CREATE TABLES
+-- ============================
+
+-- Profiles table
 CREATE TABLE profiles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     auth_id UUID,
@@ -24,30 +28,41 @@ CREATE TABLE profiles (
     bio TEXT,
     is_admin BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT unique_auth_id UNIQUE (auth_id),
+    CONSTRAINT unique_email UNIQUE (email)
 );
 
--- Create matches table
+-- Matches table
 CREATE TABLE matches (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user1_id UUID,
-    user2_id UUID,
+    user1_id UUID NOT NULL,
+    user2_id UUID NOT NULL,
     match_score INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT fk_user1 FOREIGN KEY (user1_id) REFERENCES profiles(id) ON DELETE CASCADE,
+    CONSTRAINT fk_user2 FOREIGN KEY (user2_id) REFERENCES profiles(id) ON DELETE CASCADE,
+    CONSTRAINT unique_match UNIQUE (user1_id, user2_id),
+    CONSTRAINT no_self_match CHECK (user1_id <> user2_id)
 );
 
--- Create messages table
+-- Messages table
 CREATE TABLE messages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    sender_id UUID,
-    receiver_id UUID,
+    sender_id UUID NOT NULL,
+    receiver_id UUID NOT NULL,
     content TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT fk_sender FOREIGN KEY (sender_id) REFERENCES profiles(id) ON DELETE CASCADE,
+    CONSTRAINT fk_receiver FOREIGN KEY (receiver_id) REFERENCES profiles(id) ON DELETE CASCADE
 );
 
--- Create indexes
+-- ============================
+-- INDEXES
+-- ============================
+
 CREATE INDEX idx_profiles_auth_id ON profiles(auth_id);
 CREATE INDEX idx_profiles_email ON profiles(email);
 CREATE INDEX idx_matches_users ON matches(user1_id, user2_id);
@@ -55,7 +70,10 @@ CREATE INDEX idx_messages_sender ON messages(sender_id);
 CREATE INDEX idx_messages_receiver ON messages(receiver_id);
 CREATE INDEX idx_messages_created_at ON messages(created_at DESC);
 
--- Create function to handle updated_at
+-- ============================
+-- TRIGGERS: updated_at handler
+-- ============================
+
 CREATE OR REPLACE FUNCTION handle_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -64,40 +82,25 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Create triggers for updated_at
-DROP TRIGGER IF EXISTS set_profiles_updated_at ON profiles;
 CREATE TRIGGER set_profiles_updated_at
     BEFORE UPDATE ON profiles
     FOR EACH ROW
     EXECUTE FUNCTION handle_updated_at();
 
-DROP TRIGGER IF EXISTS set_matches_updated_at ON matches;
 CREATE TRIGGER set_matches_updated_at
     BEFORE UPDATE ON matches
     FOR EACH ROW
     EXECUTE FUNCTION handle_updated_at();
 
-DROP TRIGGER IF EXISTS set_messages_updated_at ON messages;
 CREATE TRIGGER set_messages_updated_at
     BEFORE UPDATE ON messages
     FOR EACH ROW
     EXECUTE FUNCTION handle_updated_at();
 
--- Now add constraints after data is inserted
-ALTER TABLE profiles 
-    ADD CONSTRAINT unique_auth_id UNIQUE (auth_id),
-    ADD CONSTRAINT unique_email UNIQUE (email);
+-- ============================
+-- RLS POLICIES
+-- ============================
 
-ALTER TABLE matches
-    ADD CONSTRAINT fk_user1 FOREIGN KEY (user1_id) REFERENCES profiles(id) ON DELETE CASCADE,
-    ADD CONSTRAINT fk_user2 FOREIGN KEY (user2_id) REFERENCES profiles(id) ON DELETE CASCADE,
-    ADD CONSTRAINT unique_match UNIQUE (user1_id, user2_id);
-
-ALTER TABLE messages
-    ADD CONSTRAINT fk_sender FOREIGN KEY (sender_id) REFERENCES profiles(id) ON DELETE CASCADE,
-    ADD CONSTRAINT fk_receiver FOREIGN KEY (receiver_id) REFERENCES profiles(id) ON DELETE CASCADE;
-
--- Enable Row Level Security
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE matches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
@@ -113,18 +116,14 @@ DROP POLICY IF EXISTS "Users can view their own messages" ON messages;
 DROP POLICY IF EXISTS "Users can send messages" ON messages;
 DROP POLICY IF EXISTS "Users can delete their own messages" ON messages;
 
--- Create policies for profiles
+-- Profiles policies
 CREATE POLICY "Public profiles are viewable by everyone"
     ON profiles FOR SELECT
     USING (true);
 
 CREATE POLICY "Users can insert own profile"
     ON profiles FOR INSERT
-    WITH CHECK (
-        auth.uid()::text = auth_id::text
-        OR 
-        auth.uid() IS NULL
-    );
+    WITH CHECK (auth.uid()::text = auth_id::text);
 
 CREATE POLICY "Users can update own profile"
     ON profiles FOR UPDATE
@@ -134,7 +133,7 @@ CREATE POLICY "Users can delete own profile"
     ON profiles FOR DELETE
     USING (auth.uid()::text = auth_id::text);
 
--- Create policies for matches
+-- Matches policies
 CREATE POLICY "Users can view their own matches"
     ON matches FOR SELECT
     USING (
@@ -155,7 +154,7 @@ CREATE POLICY "Users can create matches"
         )
     );
 
--- Create policies for messages
+-- Messages policies
 CREATE POLICY "Users can view their own messages"
     ON messages FOR SELECT
     USING (
@@ -186,7 +185,10 @@ CREATE POLICY "Users can delete their own messages"
         )
     );
 
--- Create function to handle new user creation with conflict handling
+-- ============================
+-- Handle new user creation
+-- ============================
+
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -200,33 +202,37 @@ BEGIN
         NEW.email,
         NEW.email = 'admin@foundermatch.com'
     )
-    ON CONFLICT (auth_id) DO NOTHING
-    ON CONFLICT (email) DO NOTHING;
+    ON CONFLICT (auth_id) DO NOTHING;
     
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Create trigger for new user creation
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW
     EXECUTE FUNCTION public.handle_new_user();
 
--- Grant necessary permissions
+-- ============================
+-- Permissions
+-- ============================
+
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
 
--- Re-enable triggers
+-- ============================
+-- Final cleanup
+-- ============================
+
 SET session_replication_role = 'origin';
 
--- Clean up any orphaned records
+-- Remove any leftover orphaned records
 DELETE FROM matches WHERE 
     user1_id NOT IN (SELECT id FROM profiles) OR 
     user2_id NOT IN (SELECT id FROM profiles);
 
 DELETE FROM messages WHERE 
     sender_id NOT IN (SELECT id FROM profiles) OR 
-    receiver_id NOT IN (SELECT id FROM profiles); 
+    receiver_id NOT IN (SELECT id FROM profiles);
