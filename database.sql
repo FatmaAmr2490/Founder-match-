@@ -65,10 +65,16 @@ ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE matches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 
--- Create policies for profiles
+-- Drop existing policies
 DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON profiles;
 DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
+DROP POLICY IF EXISTS "Users can insert own profile" ON profiles;
+DROP POLICY IF EXISTS "Users can view their own matches" ON matches;
+DROP POLICY IF EXISTS "Users can create matches" ON matches;
+DROP POLICY IF EXISTS "Users can view their own messages" ON messages;
+DROP POLICY IF EXISTS "Users can send messages" ON messages;
 
+-- Create policies for profiles
 CREATE POLICY "Public profiles are viewable by everyone" 
 ON profiles FOR SELECT 
 USING (true);
@@ -81,10 +87,11 @@ CREATE POLICY "Users can insert own profile"
 ON profiles FOR INSERT 
 WITH CHECK (auth.uid() = id);
 
--- Create policies for matches
-DROP POLICY IF EXISTS "Users can view their own matches" ON matches;
-DROP POLICY IF EXISTS "Users can create matches" ON matches;
+CREATE POLICY "Users can delete own profile" 
+ON profiles FOR DELETE 
+USING (auth.uid() = id);
 
+-- Create policies for matches
 CREATE POLICY "Users can view their own matches" 
 ON matches FOR SELECT 
 USING (
@@ -99,10 +106,14 @@ WITH CHECK (
     auth.uid() = user2_id
 );
 
--- Create policies for messages
-DROP POLICY IF EXISTS "Users can view their own messages" ON messages;
-DROP POLICY IF EXISTS "Users can send messages" ON messages;
+CREATE POLICY "Users can delete their matches" 
+ON matches FOR DELETE 
+USING (
+    auth.uid() = user1_id OR 
+    auth.uid() = user2_id
+);
 
+-- Create policies for messages
 CREATE POLICY "Users can view their own messages" 
 ON messages FOR SELECT 
 USING (
@@ -113,6 +124,12 @@ USING (
 CREATE POLICY "Users can send messages" 
 ON messages FOR INSERT 
 WITH CHECK (
+    auth.uid() = sender_id
+);
+
+CREATE POLICY "Users can delete their messages" 
+ON messages FOR DELETE 
+USING (
     auth.uid() = sender_id
 );
 

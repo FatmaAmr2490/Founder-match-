@@ -13,29 +13,44 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 export const signUp = async (userData) => {
   const { email, password, ...profileData } = userData;
   
-  // Create auth user
-  const { data: authData, error: authError } = await supabase.auth.signUp({
-    email,
-    password,
-  });
+  try {
+    // Create auth user
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+    });
 
-  if (authError) throw authError;
+    if (authError) throw authError;
 
-  // Create profile record
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .insert([
-      {
-        id: authData.user.id,
-        email,
-        ...profileData,
-        created_at: new Date().toISOString(),
-      }
-    ]);
+    if (!authData.user) {
+      throw new Error('No user returned from signup');
+    }
 
-  if (profileError) throw profileError;
+    // Create profile record
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .insert([
+        {
+          id: authData.user.id,
+          email,
+          ...profileData,
+          is_admin: email === 'admin@foundermatch.com',
+          created_at: new Date().toISOString(),
+        }
+      ])
+      .select()
+      .single();
 
-  return authData;
+    if (profileError) {
+      console.error('Profile creation error:', profileError);
+      throw profileError;
+    }
+
+    return authData;
+  } catch (error) {
+    console.error('Signup error:', error);
+    throw error;
+  }
 };
 
 export const signIn = async (email, password) => {
