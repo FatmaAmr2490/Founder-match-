@@ -157,14 +157,22 @@ export const getMessages = async (userId1, userId2, page = 1, pageSize = 20) => 
 
   const { data, error, count } = await supabase
     .from('messages')
-    .select('*', { count: 'exact' })
+    .select(`
+      *,
+      sender:profiles!messages_sender_id_fkey(name, email),
+      receiver:profiles!messages_receiver_id_fkey(name, email)
+    `)
     .or(`and(sender_id.eq.${userId1},receiver_id.eq.${userId2}),and(sender_id.eq.${userId2},receiver_id.eq.${userId1})`)
     .order('created_at', { ascending: false })
     .range(from, to);
 
   if (error) throw error;
   return { 
-    messages: data.reverse(), 
+    messages: data.reverse().map(msg => ({
+      ...msg,
+      sender_name: msg.sender?.name || msg.sender?.email || 'Unknown User',
+      receiver_name: msg.receiver?.name || msg.receiver?.email || 'Unknown User'
+    })), 
     totalCount: count,
     hasMore: count > (page * pageSize)
   };

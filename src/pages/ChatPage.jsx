@@ -29,6 +29,7 @@ const ChatPage = () => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const chatContainerRef = useRef(null);
   const [initialScrollDone, setInitialScrollDone] = useState(false);
+  const [selectedContact, setSelectedContact] = useState(null);
 
   useEffect(() => {
     if (!currentUser) {
@@ -41,7 +42,11 @@ const ChatPage = () => {
     const subscription = subscribeToMessages(currentUser.id, (payload) => {
       const newMessage = payload.new;
       if (newMessage.sender_id === selectedUserId || newMessage.receiver_id === selectedUserId) {
-        setMessages(prev => [...prev, newMessage]);
+        setMessages(prev => [...prev, {
+          ...newMessage,
+          sender_name: contacts.find(c => c.id === newMessage.sender_id)?.name || 'Unknown User',
+          receiver_name: contacts.find(c => c.id === newMessage.receiver_id)?.name || 'Unknown User'
+        }]);
       }
       // Update last message in contacts
       setContacts(prev => prev.map(contact => {
@@ -59,7 +64,7 @@ const ChatPage = () => {
     return () => {
       subscription.unsubscribe();
     };
-  }, [currentUser, selectedUserId]);
+  }, [currentUser, selectedUserId, contacts]);
 
   useEffect(() => {
     if (selectedUserId) {
@@ -168,8 +173,9 @@ const ChatPage = () => {
     }
   };
 
-  const selectContact = (userId) => {
-    setSelectedUserId(userId);
+  const selectContact = (contact) => {
+    setSelectedUserId(contact.id);
+    setSelectedContact(contact);
   };
 
   const handleDeleteConversation = async (conversationId) => {
@@ -273,27 +279,27 @@ const ChatPage = () => {
                     "p-3 hover:bg-red-50 cursor-pointer transition-colors",
                     selectedUserId === contact.id && "bg-red-100 border-red-300"
                   )}
-                  onClick={() => selectContact(contact.id)}
+                  onClick={() => selectContact(contact)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                       <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-red-500 font-semibold">
-                         {contact.name.substring(0, 2)}
-                       </div>
-                       <div>
-                         <p className="font-semibold text-sm">{contact.name}</p>
-                         <p className="text-xs text-gray-500 truncate max-w-[150px]">
-                           {contact.lastMessage}
-                         </p>
-                       </div>
+                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-red-500 font-semibold">
+                        {contact.name.substring(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-sm">{contact.name}</p>
+                        <p className="text-xs text-gray-500 truncate max-w-[150px]">
+                          {contact.lastMessage || 'No messages yet'}
+                        </p>
+                      </div>
                     </div>
                     <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="text-gray-400 hover:text-red-500 h-7 w-7" 
-                        onClick={(e) => { e.stopPropagation(); handleDeleteConversation(contact.id); }}
+                      variant="ghost" 
+                      size="icon" 
+                      className="text-gray-400 hover:text-red-500 h-7 w-7" 
+                      onClick={(e) => { e.stopPropagation(); handleDeleteConversation(contact.id); }}
                     >
-                        <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </Card>
@@ -312,7 +318,7 @@ const ChatPage = () => {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
-          {selectedUserId ? (
+          {selectedUserId && selectedContact ? (
             <>
               <div className="p-4 border-b border-gray-200 bg-white flex items-center space-x-3 sticky top-16 md:top-0 z-10">
                 <Button 
@@ -324,10 +330,12 @@ const ChatPage = () => {
                   <CornerDownLeft className="h-5 w-5" />
                 </Button>
                 <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-red-500 font-semibold">
-                  {selectedUserId.substring(0, 2)}
+                  {selectedContact.name.substring(0, 2).toUpperCase()}
                 </div>
-                <h2 className="text-lg font-semibold">{selectedUserId}</h2>
+                <h2 className="text-lg font-semibold">{selectedContact.name}</h2>
               </div>
+              
+              {/* Messages area */}
               <div 
                 className="flex-1 overflow-y-auto p-6 space-y-4"
                 ref={chatContainerRef}
@@ -339,7 +347,7 @@ const ChatPage = () => {
                     <span className="ml-2 text-sm text-gray-500">Loading more messages...</span>
                   </div>
                 )}
-                {messages.map(msg => (
+                {messages.map((msg) => (
                   <motion.div
                     key={msg.id}
                     className={cn(
@@ -371,8 +379,10 @@ const ChatPage = () => {
                 ))}
                 <div ref={messagesEndRef} />
               </div>
+
+              {/* Message input */}
               <div className="p-4 border-t border-gray-200 bg-white sticky bottom-0">
-                <div className="flex items-center space-x-2">
+                <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
                   <Textarea
                     placeholder="Type your message..."
                     value={newMessage}
@@ -387,14 +397,14 @@ const ChatPage = () => {
                     rows={1}
                   />
                   <Button 
-                    onClick={handleSendMessage} 
+                    type="submit"
                     className="gradient-bg text-white"
                     disabled={!newMessage.trim()}
                   >
                     <Send className="h-4 w-4 mr-2" />
                     Send
                   </Button>
-                </div>
+                </form>
               </div>
             </>
           ) : (
