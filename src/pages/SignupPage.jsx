@@ -49,13 +49,12 @@ const SignupPage = () => {
           description: `Welcome to FounderMatch! Redirecting you to the ${result.isAdmin ? 'admin panel' : 'dashboard'}...`,
         });
         
+        // Get the redirect path from location state or default to dashboard/admin
+        const destination = location.state?.from?.pathname || (result.isAdmin ? '/admin' : '/dashboard');
+        
         // Add a small delay before navigation
         setTimeout(() => {
-          if (result.isAdmin) {
-            navigate('/admin');
-          } else {
-            navigate('/dashboard');
-          }
+          navigate(destination, { replace: true });
         }, 1500);
       } else {
         toast({

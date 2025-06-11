@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { login } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -33,13 +34,12 @@ const LoginPage = () => {
           description: `Redirecting you to the ${result.isAdmin ? 'admin panel' : 'dashboard'}...`,
         });
         
+        // Get the redirect path from location state or default to dashboard/admin
+        const destination = location.state?.from?.pathname || (result.isAdmin ? '/admin' : '/dashboard');
+        
         // Add a small delay before navigation
         setTimeout(() => {
-          if (result.isAdmin) {
-            navigate('/admin');
-          } else {
-            navigate('/dashboard');
-          }
+          navigate(destination, { replace: true });
         }, 1500);
       } else {
         toast({
@@ -95,6 +95,7 @@ const LoginPage = () => {
                       placeholder="you@example.com"
                       className="h-12"
                       required
+                      disabled={loading}
                     />
                   </div>
 
@@ -112,6 +113,7 @@ const LoginPage = () => {
                         placeholder="Enter your password"
                         className="h-12 pr-10"
                         required
+                        disabled={loading}
                       />
                       <Button
                         type="button"
@@ -119,6 +121,7 @@ const LoginPage = () => {
                         size="icon"
                         className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7"
                         onClick={() => setShowPassword(!showPassword)}
+                        disabled={loading}
                       >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </Button>
