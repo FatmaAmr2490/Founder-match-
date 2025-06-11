@@ -3,29 +3,26 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
-import { Users, MessageCircle, User, Mail, GraduationCap, Briefcase, Heart, Clock, ArrowLeft, LogOut, MessageSquare as ChatIcon, Settings } from 'lucide-react';
+import { Users, MessageCircle, User, LogOut } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getProfiles, createMatch, getMatches } from '@/lib/supabase';
+import { getProfiles, createMatch } from '@/lib/supabase';
 
 const DashboardPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { currentUser, logout, loading } = useAuth();
+  const { user, logout } = useAuth();
   const [matches, setMatches] = useState([]);
-  const [loadingMatches, setLoadingMatches] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (loading) return;
-
-    if (!currentUser) {
+    if (!user) {
       navigate('/login');
       return;
     }
 
     fetchMatches();
-  }, [navigate, currentUser, loading]);
+  }, [user, navigate]);
 
   const calculateMatchScore = (user1, user2) => {
     let score = 0;
@@ -87,27 +84,25 @@ const DashboardPage = () => {
 
   const fetchMatches = async () => {
     try {
-      setLoadingMatches(true);
-      console.log('Fetching matches for user:', currentUser.id);
-
+      setLoading(true);
+      
       // Get all profiles except current user
       const profiles = await getProfiles();
       const otherProfiles = profiles.filter(profile => 
-        profile.id !== currentUser.id && 
-        profile.email !== currentUser.email && 
+        profile.id !== user.id && 
+        profile.email !== user.email && 
         !profile.is_admin // Exclude admin users from matches
       );
-      console.log('Found potential matches:', otherProfiles);
 
       // Calculate match scores
       const matchesWithScores = await Promise.all(
         otherProfiles.map(async (profile) => {
-          const score = calculateMatchScore(currentUser, profile);
+          const score = calculateMatchScore(user, profile);
           
           // Create or update match in database if score is above threshold
           if (score > 0) {  // Only create matches if there's some compatibility
             try {
-              await createMatch(currentUser.id, profile.id, score);
+              await createMatch(user.id, profile.id, score);
             } catch (error) {
               console.error('Error creating/updating match:', error);
             }
@@ -122,11 +117,10 @@ const DashboardPage = () => {
 
       // Sort by match score and get top matches (exclude zero scores)
       const topMatches = matchesWithScores
-        .filter(match => match.matchScore > 0) // Only include matches with positive scores
+        .filter(match => match.matchScore > 0)
         .sort((a, b) => b.matchScore - a.matchScore)
         .slice(0, 6);
 
-      console.log('Top matches:', topMatches);
       setMatches(topMatches);
     } catch (error) {
       console.error('Error fetching matches:', error);
@@ -136,11 +130,11 @@ const DashboardPage = () => {
         variant: "destructive"
       });
     } finally {
-      setLoadingMatches(false);
+      setLoading(false);
     }
   };
 
-  if (loading || loadingMatches) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -197,30 +191,17 @@ const DashboardPage = () => {
                   <div className="w-24 h-24 rounded-full bg-red-100 mx-auto mb-4 flex items-center justify-center">
                     <User className="w-12 h-12 text-red-600" />
                   </div>
-                  <h2 className="text-2xl font-bold mb-1">{currentUser.name || 'Complete Your Profile'}</h2>
-                  <p className="text-gray-500">{currentUser.email}</p>
+                  <h2 className="text-2xl font-bold mb-1">{user.name}</h2>
+                  <p className="text-gray-500">{user.email}</p>
                 </div>
 
                 <div className="space-y-4">
-                  {/* Profile Completion */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-500 mb-2">Profile Completion</h3>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="bg-red-500 h-2 rounded-full" 
-                        style={{ 
-                          width: `${calculateProfileCompletion(currentUser)}%` 
-                        }}
-                      />
-                    </div>
-                  </div>
-
                   {/* Skills */}
                   <div>
                     <h3 className="text-sm font-semibold text-gray-500 mb-2">Skills</h3>
                     <div className="flex flex-wrap gap-2">
-                      {currentUser.skills && currentUser.skills.length > 0 ? (
-                        currentUser.skills.map((skill, index) => (
+                      {user.skills && user.skills.length > 0 ? (
+                        user.skills.map((skill, index) => (
                           <span 
                             key={index}
                             className="px-3 py-1 bg-red-100 text-red-600 rounded-full text-sm"
@@ -238,8 +219,8 @@ const DashboardPage = () => {
                   <div>
                     <h3 className="text-sm font-semibold text-gray-500 mb-2">Interests</h3>
                     <div className="flex flex-wrap gap-2">
-                      {currentUser.interests && currentUser.interests.length > 0 ? (
-                        currentUser.interests.map((interest, index) => (
+                      {user.interests && user.interests.length > 0 ? (
+                        user.interests.map((interest, index) => (
                           <span 
                             key={index}
                             className="px-3 py-1 bg-blue-100 text-blue-600 rounded-full text-sm"
@@ -253,37 +234,21 @@ const DashboardPage = () => {
                     </div>
                   </div>
 
-                  {/* Additional Info */}
-                  <div className="space-y-3">
-                    {currentUser.university && (
-                      <div className="flex items-center text-gray-600">
-                        <GraduationCap className="w-4 h-4 mr-2" />
-                        <span>{currentUser.university}</span>
-                      </div>
-                    )}
-                    {currentUser.availability && (
-                      <div className="flex items-center text-gray-600">
-                        <Clock className="w-4 h-4 mr-2" />
-                        <span>{currentUser.availability}</span>
-                      </div>
-                    )}
-                    {currentUser.bio && (
-                      <div className="mt-4">
-                        <h3 className="text-sm font-semibold text-gray-500 mb-2">About</h3>
-                        <p className="text-gray-600 text-sm">{currentUser.bio}</p>
-                      </div>
-                    )}
-                  </div>
+                  {/* University */}
+                  {user.university && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-500 mb-2">University</h3>
+                      <p className="text-gray-600">{user.university}</p>
+                    </div>
+                  )}
 
-                  {/* Edit Profile Button */}
-                  <Button 
-                    className="w-full"
-                    variant="outline"
-                    onClick={() => navigate('/profile')}
-                  >
-                    <Settings className="w-4 h-4 mr-2" />
-                    Edit Profile
-                  </Button>
+                  {/* Availability */}
+                  {user.availability && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-500 mb-2">Availability</h3>
+                      <p className="text-gray-600">{user.availability}</p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -291,145 +256,100 @@ const DashboardPage = () => {
 
           {/* Matches Section */}
           <div className="md:col-span-8">
-            <h2 className="text-2xl font-bold mb-6">Your Matches</h2>
-            {matches.length === 0 ? (
-              <Card className="shadow-lg border-0">
-                <CardContent className="p-6 text-center text-gray-500">
-                  <Users className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                  <p>No matches found yet. Check back soon!</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {matches.map((match) => (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {matches.length > 0 ? (
+                matches.map((match) => (
                   <motion.div
                     key={match.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
+                    transition={{ duration: 0.5 }}
                   >
                     <Card className="shadow-lg border-0 h-full">
                       <CardContent className="p-6">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="flex items-center space-x-4">
-                            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                              <span className="text-red-600 font-semibold text-lg">
-                                {match.name ? match.name.charAt(0).toUpperCase() : 'U'}
-                              </span>
-                            </div>
-                            <div>
-                              <h3 className="font-semibold text-lg">{match.name}</h3>
-                              <p className="text-sm text-gray-500">{match.university || 'No university listed'}</p>
-                            </div>
+                        <div className="text-center mb-4">
+                          <div className="w-16 h-16 rounded-full bg-red-100 mx-auto mb-3 flex items-center justify-center">
+                            <User className="w-8 h-8 text-red-600" />
                           </div>
-                          <div className="text-right">
-                            <div className="text-2xl font-bold text-red-600">{match.matchScore}%</div>
-                            <div className="text-sm text-gray-500">Match</div>
+                          <h3 className="font-semibold text-lg mb-1">{match.name}</h3>
+                          {match.university && (
+                            <p className="text-sm text-gray-500 mb-2">{match.university}</p>
+                          )}
+                          <div className="inline-flex items-center bg-red-100 text-red-600 rounded-full px-3 py-1 text-sm">
+                            {match.matchScore}% Match
                           </div>
                         </div>
 
-                        <div className="space-y-4">
-                          <div>
-                            <p className="text-sm text-gray-500 mb-1">Skills</p>
-                            <p className="font-medium">
-                              {Array.isArray(match.skills) ? match.skills.join(', ') : 'Not specified'}
-                            </p>
+                        {/* Skills */}
+                        {match.skills && match.skills.length > 0 && (
+                          <div className="mb-4">
+                            <h4 className="text-sm font-semibold text-gray-500 mb-2">Skills</h4>
+                            <div className="flex flex-wrap gap-1">
+                              {match.skills.slice(0, 3).map((skill, index) => (
+                                <span
+                                  key={index}
+                                  className="px-2 py-1 bg-red-50 text-red-600 rounded-full text-xs"
+                                >
+                                  {skill}
+                                </span>
+                              ))}
+                              {match.skills.length > 3 && (
+                                <span className="px-2 py-1 bg-red-50 text-red-600 rounded-full text-xs">
+                                  +{match.skills.length - 3} more
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          {match.interests && match.interests.length > 0 && (
-                            <div>
-                              <p className="text-sm text-gray-500 mb-1">Interests</p>
-                              <p className="font-medium">
-                                {Array.isArray(match.interests) ? match.interests.join(', ') : ''}
-                              </p>
-                            </div>
-                          )}
-                          {match.availability && (
-                            <div>
-                              <p className="text-sm text-gray-500 mb-1">Availability</p>
-                              <p className="font-medium">{match.availability}</p>
-                            </div>
-                          )}
-                        </div>
+                        )}
 
-                        <div className="mt-6 flex gap-2">
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button variant="outline" size="sm" className="flex-1">
-                                View Profile
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-2xl">
-                              <DialogHeader>
-                                <DialogTitle className="text-2xl">{match.name}</DialogTitle>
-                              </DialogHeader>
-                              <div className="space-y-4">
-                                <div className="grid md:grid-cols-2 gap-4">
-                                  <div>
-                                    <p className="text-sm text-gray-500 mb-1">Email</p>
-                                    <p className="font-medium">{match.email}</p>
-                                  </div>
-                                  {match.university && (
-                                    <div>
-                                      <p className="text-sm text-gray-500 mb-1">Education</p>
-                                      <p className="font-medium">{match.university}</p>
-                                    </div>
-                                  )}
-                                  <div>
-                                    <p className="text-sm text-gray-500 mb-1">Skills</p>
-                                    <p className="font-medium">{match.skills}</p>
-                                  </div>
-                                  {match.availability && (
-                                    <div>
-                                      <p className="text-sm text-gray-500 mb-1">Availability</p>
-                                      <p className="font-medium">{match.availability}</p>
-                                    </div>
-                                  )}
-                                </div>
-                                {match.bio && (
-                                  <div>
-                                    <p className="text-sm text-gray-500 mb-1">About</p>
-                                    <p className="font-medium">{match.bio}</p>
-                                  </div>
-                                )}
-                              </div>
-                            </DialogContent>
-                          </Dialog>
-                          <Button 
-                            variant="default"
-                            size="sm"
-                            className="flex-1"
-                            onClick={() => navigate('/chat')}
-                          >
-                            <ChatIcon className="h-4 w-4 mr-2" />
-                            Chat
-                          </Button>
-                        </div>
+                        {/* Interests */}
+                        {match.interests && match.interests.length > 0 && (
+                          <div className="mb-4">
+                            <h4 className="text-sm font-semibold text-gray-500 mb-2">Interests</h4>
+                            <div className="flex flex-wrap gap-1">
+                              {match.interests.slice(0, 3).map((interest, index) => (
+                                <span
+                                  key={index}
+                                  className="px-2 py-1 bg-blue-50 text-blue-600 rounded-full text-xs"
+                                >
+                                  {interest}
+                                </span>
+                              ))}
+                              {match.interests.length > 3 && (
+                                <span className="px-2 py-1 bg-blue-50 text-blue-600 rounded-full text-xs">
+                                  +{match.interests.length - 3} more
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        <Button
+                          className="w-full gradient-bg text-white"
+                          onClick={() => navigate(`/chat/${match.id}`)}
+                        >
+                          <MessageCircle className="h-4 w-4 mr-2" />
+                          Start Chat
+                        </Button>
                       </CardContent>
                     </Card>
                   </motion.div>
-                ))}
-              </div>
-            )}
+                ))
+              ) : (
+                <div className="md:col-span-3 text-center py-12">
+                  <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-600 mb-2">No Matches Yet</h3>
+                  <p className="text-gray-500">
+                    We're still looking for your perfect co-founder match.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </motion.div>
       </div>
     </div>
   );
-};
-
-// Helper function to calculate profile completion percentage
-const calculateProfileCompletion = (user) => {
-  const fields = [
-    user.name,
-    user.skills?.length > 0,
-    user.interests?.length > 0,
-    user.university,
-    user.availability,
-    user.bio
-  ];
-  
-  const completedFields = fields.filter(Boolean).length;
-  return Math.round((completedFields / fields.length) * 100);
 };
 
 export default DashboardPage;
