@@ -53,13 +53,31 @@ export const signUp = async (userData) => {
 };
 
 export const signIn = async (email, password) => {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+  try {
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-  if (error) throw error;
-  return data;
+    if (authError) throw authError;
+
+    // Get profile data
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('auth_id', authData.user.id)
+      .single();
+
+    if (profileError) {
+      console.error('Error fetching profile after login:', profileError);
+      throw profileError;
+    }
+
+    return { user: { ...authData.user, ...profile } };
+  } catch (error) {
+    console.error('Login error:', error);
+    throw error;
+  }
 };
 
 export const signOut = async () => {
@@ -68,22 +86,31 @@ export const signOut = async () => {
 };
 
 export const getCurrentUser = async () => {
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error) throw error;
-  
-  if (user) {
-    // Get profile data
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
+  try {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError) throw authError;
+    
+    if (user) {
+      // Get profile data
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('auth_id', user.id)
+        .single();
 
-    if (profileError) throw profileError;
-    return { ...user, ...profile };
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+        return null;
+      }
+
+      return { ...user, ...profile };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error in getCurrentUser:', error);
+    return null;
   }
-  
-  return null;
 };
 
 // Profile helper functions

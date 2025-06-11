@@ -10,10 +10,6 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    checkUser();
-  }, []);
-
   const checkUser = async () => {
     try {
       console.log('Checking user status...');
@@ -22,31 +18,23 @@ export const AuthProvider = ({ children }) => {
       if (user) {
         console.log('Found user:', user);
         setCurrentUser(user);
-        const adminStatus = user.email === 'admin@foundermatch.com';
-        console.log('Setting admin status:', adminStatus);
-        setIsAdmin(adminStatus);
+        setIsAdmin(user.is_admin || false);
+      } else {
+        setCurrentUser(null);
+        setIsAdmin(false);
       }
     } catch (error) {
       console.error('Error checking user:', error);
+      setCurrentUser(null);
+      setIsAdmin(false);
     } finally {
       setLoading(false);
     }
   };
 
-  const signup = async (userData) => {
-    try {
-      const { user } = await signUp(userData);
-      const isAdminEmail = userData.email === 'admin@foundermatch.com';
-      
-      setCurrentUser(user);
-      setIsAdmin(isAdminEmail);
-
-      return { success: true, isAdmin: isAdminEmail };
-    } catch (error) {
-      console.error('Error signing up:', error);
-      return { success: false, message: error.message };
-    }
-  };
+  useEffect(() => {
+    checkUser();
+  }, []);
 
   const login = async (email, password) => {
     try {
@@ -55,14 +43,33 @@ export const AuthProvider = ({ children }) => {
       const { user } = await signIn(email, password);
       console.log('Login successful:', user);
       
-      const isAdminEmail = email === 'admin@foundermatch.com';
       setCurrentUser(user);
-      setIsAdmin(isAdminEmail);
+      setIsAdmin(user.is_admin || false);
 
-      return { success: true, isAdmin: isAdminEmail };
+      return { success: true, isAdmin: user.is_admin || false };
     } catch (error) {
       console.error('Error logging in:', error);
-      return { success: false, message: error.message };
+      return { 
+        success: false, 
+        message: error.message || "Invalid credentials. Please try again." 
+      };
+    }
+  };
+
+  const signup = async (userData) => {
+    try {
+      const { user } = await signUp(userData);
+      
+      setCurrentUser(user);
+      setIsAdmin(user.is_admin || false);
+
+      return { success: true, isAdmin: user.is_admin || false };
+    } catch (error) {
+      console.error('Error signing up:', error);
+      return { 
+        success: false, 
+        message: error.message || "Failed to create account. Please try again." 
+      };
     }
   };
 
@@ -77,6 +84,10 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const refreshUser = async () => {
+    await checkUser();
+  };
+
   const value = {
     currentUser,
     isAdmin,
@@ -84,6 +95,7 @@ export const AuthProvider = ({ children }) => {
     signup,
     login,
     logout,
+    refreshUser
   };
 
   return (
