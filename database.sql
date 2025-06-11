@@ -1,10 +1,27 @@
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- First, disable RLS to avoid any conflicts during setup
+ALTER TABLE IF EXISTS profiles DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS matches DISABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS messages DISABLE ROW LEVEL SECURITY;
 
--- Drop existing tables if they exist
+-- Drop existing policies
+DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
+DROP POLICY IF EXISTS "Users can insert own profile" ON profiles;
+DROP POLICY IF EXISTS "Users can delete own profile" ON profiles;
+DROP POLICY IF EXISTS "Users can view their own matches" ON matches;
+DROP POLICY IF EXISTS "Users can create matches" ON matches;
+DROP POLICY IF EXISTS "Users can delete their matches" ON matches;
+DROP POLICY IF EXISTS "Users can view their own messages" ON messages;
+DROP POLICY IF EXISTS "Users can send messages" ON messages;
+DROP POLICY IF EXISTS "Users can delete their messages" ON messages;
+
+-- Drop existing tables
 DROP TABLE IF EXISTS messages;
 DROP TABLE IF EXISTS matches;
 DROP TABLE IF EXISTS profiles;
+
+-- Enable UUID extension if not already enabled
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Create profiles table
 CREATE TABLE profiles (
@@ -12,8 +29,8 @@ CREATE TABLE profiles (
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL UNIQUE,
     university VARCHAR(255),
-    skills TEXT[],
-    interests TEXT[],
+    skills TEXT[] DEFAULT '{}',
+    interests TEXT[] DEFAULT '{}',
     availability VARCHAR(50),
     bio TEXT,
     is_admin BOOLEAN DEFAULT FALSE,
@@ -60,90 +77,83 @@ CREATE TABLE messages (
         ON DELETE CASCADE
 );
 
--- Enable Row Level Security (RLS)
+-- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);
+CREATE INDEX IF NOT EXISTS idx_matches_user1 ON matches(user1_id);
+CREATE INDEX IF NOT EXISTS idx_matches_user2 ON matches(user2_id);
+CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_id);
+CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
+
+-- Enable Row Level Security
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE matches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 
--- Drop existing policies
-DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON profiles;
-DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
-DROP POLICY IF EXISTS "Users can insert own profile" ON profiles;
-DROP POLICY IF EXISTS "Users can view their own matches" ON matches;
-DROP POLICY IF EXISTS "Users can create matches" ON matches;
-DROP POLICY IF EXISTS "Users can view their own messages" ON messages;
-DROP POLICY IF EXISTS "Users can send messages" ON messages;
-
--- Create policies for profiles
-CREATE POLICY "Public profiles are viewable by everyone" 
-ON profiles FOR SELECT 
+-- Create policies for profiles table
+CREATE POLICY "Public profiles are viewable by everyone"
+ON profiles FOR SELECT
 USING (true);
 
-CREATE POLICY "Users can update own profile" 
-ON profiles FOR UPDATE 
-USING (auth.uid() = id);
-
-CREATE POLICY "Users can insert own profile" 
-ON profiles FOR INSERT 
+CREATE POLICY "Users can insert own profile"
+ON profiles FOR INSERT
 WITH CHECK (auth.uid() = id);
 
-CREATE POLICY "Users can delete own profile" 
-ON profiles FOR DELETE 
+CREATE POLICY "Users can update own profile"
+ON profiles FOR UPDATE
 USING (auth.uid() = id);
 
--- Create policies for matches
-CREATE POLICY "Users can view their own matches" 
-ON matches FOR SELECT 
+CREATE POLICY "Users can delete own profile"
+ON profiles FOR DELETE
+USING (auth.uid() = id);
+
+-- Create policies for matches table
+CREATE POLICY "Users can view their own matches"
+ON matches FOR SELECT
 USING (
     auth.uid() = user1_id OR 
     auth.uid() = user2_id
 );
 
-CREATE POLICY "Users can create matches" 
-ON matches FOR INSERT 
+CREATE POLICY "Users can create matches"
+ON matches FOR INSERT
 WITH CHECK (
     auth.uid() = user1_id OR 
     auth.uid() = user2_id
 );
 
-CREATE POLICY "Users can delete their matches" 
-ON matches FOR DELETE 
+CREATE POLICY "Users can delete their matches"
+ON matches FOR DELETE
 USING (
     auth.uid() = user1_id OR 
     auth.uid() = user2_id
 );
 
--- Create policies for messages
-CREATE POLICY "Users can view their own messages" 
-ON messages FOR SELECT 
+-- Create policies for messages table
+CREATE POLICY "Users can view their own messages"
+ON messages FOR SELECT
 USING (
     auth.uid() = sender_id OR 
     auth.uid() = receiver_id
 );
 
-CREATE POLICY "Users can send messages" 
-ON messages FOR INSERT 
+CREATE POLICY "Users can send messages"
+ON messages FOR INSERT
 WITH CHECK (
     auth.uid() = sender_id
 );
 
-CREATE POLICY "Users can delete their messages" 
-ON messages FOR DELETE 
+CREATE POLICY "Users can delete their messages"
+ON messages FOR DELETE
 USING (
     auth.uid() = sender_id
 );
 
--- Create indexes for better performance
-DROP INDEX IF EXISTS idx_profiles_email;
-DROP INDEX IF EXISTS idx_matches_user1;
-DROP INDEX IF EXISTS idx_matches_user2;
-DROP INDEX IF EXISTS idx_messages_sender;
-DROP INDEX IF EXISTS idx_messages_receiver;
-DROP INDEX IF EXISTS idx_messages_created_at;
+-- Grant necessary permissions
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
 
-CREATE INDEX idx_profiles_email ON profiles(email);
-CREATE INDEX idx_matches_user1 ON matches(user1_id);
-CREATE INDEX idx_matches_user2 ON matches(user2_id);
-CREATE INDEX idx_messages_sender ON messages(sender_id);
-CREATE INDEX idx_messages_receiver ON messages(receiver_id);
-CREATE INDEX idx_messages_created_at ON messages(created_at); 
+-- Reset sequences if they exist
+ALTER SEQUENCE IF EXISTS matches_id_seq RESTART WITH 1;
+ALTER SEQUENCE IF EXISTS messages_id_seq RESTART WITH 1; 
