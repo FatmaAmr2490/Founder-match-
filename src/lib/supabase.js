@@ -27,15 +27,14 @@ export const signUp = async (userData) => {
     }
 
     // Create profile record
-    const { error: profileError } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .insert([
         {
-          id: authData.user.id,
+          auth_id: authData.user.id,
           email,
           ...profileData,
-          is_admin: email === 'admin@foundermatch.com',
-          created_at: new Date().toISOString(),
+          is_admin: email === 'admin@foundermatch.com'
         }
       ])
       .select()
@@ -46,7 +45,7 @@ export const signUp = async (userData) => {
       throw profileError;
     }
 
-    return authData;
+    return { ...authData, profile };
   } catch (error) {
     console.error('Signup error:', error);
     throw error;

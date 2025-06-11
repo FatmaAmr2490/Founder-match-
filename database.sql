@@ -25,7 +25,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Create profiles table
 CREATE TABLE profiles (
-    id UUID PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL UNIQUE,
     university VARCHAR(255),
@@ -35,10 +35,7 @@ CREATE TABLE profiles (
     bio TEXT,
     is_admin BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT fk_user
-        FOREIGN KEY (id)
-        REFERENCES auth.users(id)
-        ON DELETE CASCADE
+    auth_id UUID REFERENCES auth.users(id) ON DELETE CASCADE
 );
 
 -- Create matches table
@@ -79,6 +76,7 @@ CREATE TABLE messages (
 
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);
+CREATE INDEX IF NOT EXISTS idx_profiles_auth_id ON profiles(auth_id);
 CREATE INDEX IF NOT EXISTS idx_matches_user1 ON matches(user1_id);
 CREATE INDEX IF NOT EXISTS idx_matches_user2 ON matches(user2_id);
 CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
@@ -91,62 +89,88 @@ ALTER TABLE matches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 
 -- Create policies for profiles table
-CREATE POLICY "Public profiles are viewable by everyone"
+CREATE POLICY "Profiles are viewable by everyone"
 ON profiles FOR SELECT
 USING (true);
 
-CREATE POLICY "Users can insert own profile"
+CREATE POLICY "Users can create their own profile"
 ON profiles FOR INSERT
-WITH CHECK (auth.uid() = id);
+WITH CHECK (
+    -- Allow during signup
+    (auth.uid() IS NULL AND auth.role() = 'anon') 
+    OR 
+    -- Allow authenticated users to create their profile
+    (auth.uid() IS NOT NULL AND auth.uid()::text = id::text)
+);
 
-CREATE POLICY "Users can update own profile"
+CREATE POLICY "Users can update their own profile"
 ON profiles FOR UPDATE
-USING (auth.uid() = id);
+USING (auth.uid()::text = id::text);
 
-CREATE POLICY "Users can delete own profile"
+CREATE POLICY "Users can delete their own profile"
 ON profiles FOR DELETE
-USING (auth.uid() = id);
+USING (auth.uid()::text = id::text);
 
 -- Create policies for matches table
 CREATE POLICY "Users can view their own matches"
 ON matches FOR SELECT
 USING (
-    auth.uid() = user1_id OR 
-    auth.uid() = user2_id
+    EXISTS (
+        SELECT 1 FROM profiles
+        WHERE (profiles.id = matches.user1_id OR profiles.id = matches.user2_id)
+        AND profiles.auth_id = auth.uid()
+    )
 );
 
 CREATE POLICY "Users can create matches"
 ON matches FOR INSERT
 WITH CHECK (
-    auth.uid() = user1_id OR 
-    auth.uid() = user2_id
+    EXISTS (
+        SELECT 1 FROM profiles
+        WHERE (profiles.id = user1_id OR profiles.id = user2_id)
+        AND profiles.auth_id = auth.uid()
+    )
 );
 
 CREATE POLICY "Users can delete their matches"
 ON matches FOR DELETE
 USING (
-    auth.uid() = user1_id OR 
-    auth.uid() = user2_id
+    EXISTS (
+        SELECT 1 FROM profiles
+        WHERE (profiles.id = matches.user1_id OR profiles.id = matches.user2_id)
+        AND profiles.auth_id = auth.uid()
+    )
 );
 
 -- Create policies for messages table
 CREATE POLICY "Users can view their own messages"
 ON messages FOR SELECT
 USING (
-    auth.uid() = sender_id OR 
-    auth.uid() = receiver_id
+    EXISTS (
+        SELECT 1 FROM profiles
+        WHERE (profiles.id = messages.sender_id OR profiles.id = messages.receiver_id)
+        AND profiles.auth_id = auth.uid()
+    )
 );
 
 CREATE POLICY "Users can send messages"
 ON messages FOR INSERT
 WITH CHECK (
-    auth.uid() = sender_id
+    EXISTS (
+        SELECT 1 FROM profiles
+        WHERE profiles.id = sender_id
+        AND profiles.auth_id = auth.uid()
+    )
 );
 
 CREATE POLICY "Users can delete their messages"
 ON messages FOR DELETE
 USING (
-    auth.uid() = sender_id
+    EXISTS (
+        SELECT 1 FROM profiles
+        WHERE profiles.id = messages.sender_id
+        AND profiles.auth_id = auth.uid()
+    )
 );
 
 -- Grant necessary permissions
