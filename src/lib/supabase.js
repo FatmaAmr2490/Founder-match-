@@ -26,17 +26,20 @@ export const signUp = async (userData) => {
       throw new Error('No user returned from signup');
     }
 
+    // Prepare profile data with arrays
+    const processedProfileData = {
+      ...profileData,
+      skills: profileData.skills ? profileData.skills.split(',').map(s => s.trim()).filter(Boolean) : [],
+      interests: profileData.interests ? profileData.interests.split(',').map(i => i.trim()).filter(Boolean) : [],
+      auth_id: authData.user.id,
+      email,
+      is_admin: email === 'admin@foundermatch.com'
+    };
+
     // Create profile record
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .insert([
-        {
-          auth_id: authData.user.id,
-          email,
-          ...profileData,
-          is_admin: email === 'admin@foundermatch.com'
-        }
-      ])
+      .insert([processedProfileData])
       .select()
       .single();
 
@@ -45,7 +48,7 @@ export const signUp = async (userData) => {
       throw profileError;
     }
 
-    return { ...authData, profile };
+    return { user: { ...authData.user, ...profile } };
   } catch (error) {
     console.error('Signup error:', error);
     throw error;
@@ -115,23 +118,29 @@ export const getCurrentUser = async () => {
 
 // Profile helper functions
 export const updateProfile = async (userId, profileData) => {
-  const { data, error } = await supabase
-    .from('profiles')
-    .update({
-      name: profileData.name,
-      bio: profileData.bio,
-      university: profileData.university,
-      availability: profileData.availability,
-      skills: profileData.skills,
-      interests: profileData.interests,
+  try {
+    const processedData = {
+      ...profileData,
+      skills: Array.isArray(profileData.skills) ? profileData.skills : 
+        (profileData.skills ? profileData.skills.split(',').map(s => s.trim()).filter(Boolean) : []),
+      interests: Array.isArray(profileData.interests) ? profileData.interests :
+        (profileData.interests ? profileData.interests.split(',').map(i => i.trim()).filter(Boolean) : []),
       updated_at: new Date().toISOString()
-    })
-    .eq('id', userId)
-    .select()
-    .single();
+    };
 
-  if (error) throw error;
-  return data;
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(processedData)
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    throw error;
+  }
 };
 
 export const getProfiles = async () => {
@@ -173,47 +182,68 @@ export const getMatches = async (userId) => {
 };
 
 // Message helper functions
-export const sendMessage = async (senderId, receiverId, content) => {
-  const { data, error } = await supabase
-    .from('messages')
-    .insert([
-      {
-        sender_id: senderId,
-        receiver_id: receiverId,
-        content,
-      }
-    ])
-    .select();
-
-  if (error) throw error;
-  return data[0];
-};
-
 export const getMessages = async (userId1, userId2, page = 1, pageSize = 20) => {
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  const { data, error, count } = await supabase
-    .from('messages')
-    .select(`
-      *,
-      sender:profiles!messages_sender_id_fkey(name, email),
-      receiver:profiles!messages_receiver_id_fkey(name, email)
-    `)
-    .or(`and(sender_id.eq.${userId1},receiver_id.eq.${userId2}),and(sender_id.eq.${userId2},receiver_id.eq.${userId1})`)
-    .order('created_at', { ascending: false })
-    .range(from, to);
+  try {
+    const { data, error, count } = await supabase
+      .from('messages')
+      .select(`
+        *,
+        sender:profiles!messages_sender_id_fkey(id, name, email, auth_id),
+        receiver:profiles!messages_receiver_id_fkey(id, name, email, auth_id)
+      `, { count: 'exact' })
+      .or(`and(sender_id.eq.${userId1},receiver_id.eq.${userId2}),and(sender_id.eq.${userId2},receiver_id.eq.${userId1})`)
+      .order('created_at', { ascending: false })
+      .range(from, to);
 
-  if (error) throw error;
-  return { 
-    messages: data.reverse().map(msg => ({
-      ...msg,
-      sender_name: msg.sender?.name || msg.sender?.email || 'Unknown User',
-      receiver_name: msg.receiver?.name || msg.receiver?.email || 'Unknown User'
-    })), 
-    totalCount: count,
-    hasMore: count > (page * pageSize)
-  };
+    if (error) throw error;
+
+    return { 
+      messages: data.reverse().map(msg => ({
+        ...msg,
+        sender_name: msg.sender?.name || msg.sender?.email || 'Unknown User',
+        receiver_name: msg.receiver?.name || msg.receiver?.email || 'Unknown User'
+      })), 
+      totalCount: count,
+      hasMore: count > (page * pageSize)
+    };
+  } catch (error) {
+    console.error('Error fetching messages:', error);
+    throw error;
+  }
+};
+
+export const sendMessage = async (senderId, receiverId, content) => {
+  try {
+    const { data, error } = await supabase
+      .from('messages')
+      .insert([
+        {
+          sender_id: senderId,
+          receiver_id: receiverId,
+          content,
+        }
+      ])
+      .select(`
+        *,
+        sender:profiles!messages_sender_id_fkey(id, name, email),
+        receiver:profiles!messages_receiver_id_fkey(id, name, email)
+      `)
+      .single();
+
+    if (error) throw error;
+    
+    return {
+      ...data,
+      sender_name: data.sender?.name || data.sender?.email || 'Unknown User',
+      receiver_name: data.receiver?.name || data.receiver?.email || 'Unknown User'
+    };
+  } catch (error) {
+    console.error('Error sending message:', error);
+    throw error;
+  }
 };
 
 export const deleteConversation = async (userId1, userId2) => {

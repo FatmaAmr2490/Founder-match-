@@ -1,113 +1,129 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { signUp, signIn, signOut, getCurrentUser } from '@/lib/supabase';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase, signIn, signUp, getCurrentUser } from '@/lib/supabase';
 
-const AuthContext = createContext(null);
+const AuthContext = createContext({});
 
 export const AuthProvider = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+  const [error, setError] = useState(null);
 
-  const checkUser = async () => {
-    try {
-      console.log('Checking user status...');
-      const user = await getCurrentUser();
-      
-      if (user) {
-        console.log('Found user:', user);
-        setCurrentUser(user);
-        setIsAdmin(user.is_admin || false);
-      } else {
-        setCurrentUser(null);
-        setIsAdmin(false);
+  useEffect(() => {
+    // Check active sessions and sets the user
+    const session = supabase.auth.getSession();
+
+    if (session) {
+      refreshUser();
+    } else {
+      setLoading(false);
+    }
+
+    // Listen for changes on auth state (sign in, sign out, etc.)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN') {
+        await refreshUser();
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
       }
+    });
+
+    return () => {
+      if (subscription) subscription.unsubscribe();
+    };
+  }, []);
+
+  const refreshUser = async () => {
+    try {
+      const currentUser = await getCurrentUser();
+      setUser(currentUser);
+      setError(null);
     } catch (error) {
-      console.error('Error checking user:', error);
-      setCurrentUser(null);
-      setIsAdmin(false);
+      console.error('Error refreshing user:', error);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    checkUser();
-  }, []);
-
   const login = async (email, password) => {
     try {
-      console.log('Login attempt for:', email);
+      setLoading(true);
+      const { user: authUser, error } = await signIn(email, password);
       
-      const { user } = await signIn(email, password);
-      console.log('Login successful:', user);
+      if (error) throw error;
       
-      setCurrentUser(user);
-      setIsAdmin(user.is_admin || false);
-
-      return { success: true, isAdmin: user.is_admin || false };
+      setUser(authUser);
+      return { success: true, isAdmin: authUser.is_admin };
     } catch (error) {
-      console.error('Error logging in:', error);
+      console.error('Login error:', error);
       return { 
         success: false, 
-        message: error.message || "Invalid credentials. Please try again." 
+        message: error.message || 'Failed to log in. Please check your credentials and try again.' 
       };
+    } finally {
+      setLoading(false);
     }
   };
 
   const signup = async (userData) => {
     try {
-      const { user } = await signUp(userData);
+      setLoading(true);
+      const { user: newUser, error } = await signUp(userData);
       
-      setCurrentUser(user);
-      setIsAdmin(user.is_admin || false);
-
-      return { success: true, isAdmin: user.is_admin || false };
+      if (error) throw error;
+      
+      setUser(newUser);
+      return { success: true, isAdmin: newUser.is_admin };
     } catch (error) {
-      console.error('Error signing up:', error);
+      console.error('Signup error:', error);
       return { 
         success: false, 
-        message: error.message || "Failed to create account. Please try again." 
+        message: error.message || 'Failed to create account. Please try again.' 
       };
+    } finally {
+      setLoading(false);
     }
   };
 
   const logout = async () => {
     try {
-      await signOut();
-      setCurrentUser(null);
-      setIsAdmin(false);
-      navigate('/');
+      setLoading(true);
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      setUser(null);
+      return { success: true };
     } catch (error) {
-      console.error('Error logging out:', error);
+      console.error('Logout error:', error);
+      return { 
+        success: false, 
+        message: error.message || 'Failed to log out. Please try again.' 
+      };
+    } finally {
+      setLoading(false);
     }
   };
 
-  const refreshUser = async () => {
-    await checkUser();
-  };
-
   const value = {
-    currentUser,
-    isAdmin,
+    user,
     loading,
-    signup,
+    error,
     login,
+    signup,
     logout,
-    refreshUser
+    refreshUser,
   };
 
   return (
     <AuthContext.Provider value={value}>
-      {children}
+      {!loading && children}
     </AuthContext.Provider>
   );
 };
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
