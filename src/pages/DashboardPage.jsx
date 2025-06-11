@@ -26,7 +26,7 @@ const DashboardPage = () => {
 
   const calculateMatchScore = (user1, user2) => {
     let score = 0;
-
+    
     // Don't match users with themselves or with admins
     if (user1.id === user2.id || user1.email === user2.email || user2.is_admin) {
       return 0;
@@ -124,11 +124,11 @@ const DashboardPage = () => {
       setMatches(topMatches);
     } catch (error) {
       console.error('Error fetching matches:', error);
-      toast({
+    toast({
         title: "Error",
         description: "Failed to load matches. Please try again.",
         variant: "destructive"
-      });
+    });
     } finally {
       setLoading(false);
     }
@@ -197,7 +197,7 @@ const DashboardPage = () => {
 
                 <div className="space-y-4">
                   {/* Skills */}
-                  <div>
+                    <div>
                     <h3 className="text-sm font-semibold text-gray-500 mb-2">Skills</h3>
                     <div className="flex flex-wrap gap-2">
                       {user.skills && user.skills.length > 0 ? (
@@ -247,11 +247,11 @@ const DashboardPage = () => {
                     <div>
                       <h3 className="text-sm font-semibold text-gray-500 mb-2">Availability</h3>
                       <p className="text-gray-600">{user.availability}</p>
-                    </div>
-                  )}
+                  </div>
+                )}
                 </div>
-              </CardContent>
-            </Card>
+            </CardContent>
+          </Card>
           </div>
 
           {/* Matches Section */}
@@ -272,7 +272,7 @@ const DashboardPage = () => {
                             <User className="w-8 h-8 text-red-600" />
                           </div>
                           <h3 className="font-semibold text-lg mb-1">{match.name}</h3>
-                          {match.university && (
+                        {match.university && (
                             <p className="text-sm text-gray-500 mb-2">{match.university}</p>
                           )}
                           <div className="inline-flex items-center bg-red-100 text-red-600 rounded-full px-3 py-1 text-sm">
@@ -301,7 +301,7 @@ const DashboardPage = () => {
                             </div>
                           </div>
                         )}
-
+                        
                         {/* Interests */}
                         {match.interests && match.interests.length > 0 && (
                           <div className="mb-4">
@@ -319,18 +319,18 @@ const DashboardPage = () => {
                                 <span className="px-2 py-1 bg-blue-50 text-blue-600 rounded-full text-xs">
                                   +{match.interests.length - 3} more
                                 </span>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        <Button
+                                  )}
+                                </div>
+                                  </div>
+                                )}
+                          
+                          <Button 
                           className="w-full gradient-bg text-white"
                           onClick={() => navigate(`/chat/${match.id}`)}
-                        >
+                          >
                           <MessageCircle className="h-4 w-4 mr-2" />
                           Start Chat
-                        </Button>
+                          </Button>
                       </CardContent>
                     </Card>
                   </motion.div>
@@ -342,8 +342,8 @@ const DashboardPage = () => {
                   <p className="text-gray-500">
                     We're still looking for your perfect co-founder match.
                   </p>
-                </div>
-              )}
+              </div>
+            )}
             </div>
           </div>
         </motion.div>
