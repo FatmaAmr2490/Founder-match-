@@ -10,6 +10,7 @@ import AdminPage from '@/pages/AdminPage';
 import AdminUsersPage from '@/pages/AdminUsersPage';
 import AdminUserProfilePage from '@/pages/AdminUserProfilePage';
 import ChatPage from '@/pages/ChatPage';
+import ProfilePage from '@/pages/ProfilePage';
 import PrivacyPolicyPage from '@/pages/PrivacyPolicyPage'; // New import
 import TermsOfServicePage from '@/pages/TermsOfServicePage'; // New import
 import AuthContext, { AuthProvider } from '@/contexts/AuthContext';
@@ -48,6 +49,14 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <DashboardPage />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/profile" 
+          element={
+            <ProtectedRoute>
+              <ProfilePage />
             </ProtectedRoute>
           } 
         />

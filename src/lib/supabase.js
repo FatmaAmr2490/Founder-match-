@@ -87,13 +87,24 @@ export const getCurrentUser = async () => {
 };
 
 // Profile helper functions
-export const updateProfile = async (userId, updates) => {
-  const { error } = await supabase
+export const updateProfile = async (userId, profileData) => {
+  const { data, error } = await supabase
     .from('profiles')
-    .update(updates)
-    .eq('id', userId);
+    .update({
+      name: profileData.name,
+      bio: profileData.bio,
+      university: profileData.university,
+      availability: profileData.availability,
+      skills: profileData.skills,
+      interests: profileData.interests,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', userId)
+    .select()
+    .single();
 
   if (error) throw error;
+  return data;
 };
 
 export const getProfiles = async () => {
