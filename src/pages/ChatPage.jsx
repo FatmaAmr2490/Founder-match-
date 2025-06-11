@@ -9,6 +9,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Users, MessageSquare, Send, ArrowLeft, Search, UserCircle2, Trash2, CornerDownLeft, LogOut } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import { getMessages, sendMessage, subscribeToMessages, getProfiles, deleteConversation } from '@/lib/supabase';
 
 const ChatPage = () => {
   const navigate = useNavigate();
@@ -20,7 +21,14 @@ const ChatPage = () => {
   const [newMessage, setNewMessage] = useState('');
   const [contacts, setContacts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [loadingContacts, setLoadingContacts] = useState(true);
   const messagesEndRef = useRef(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const chatContainerRef = useRef(null);
+  const [initialScrollDone, setInitialScrollDone] = useState(false);
 
   useEffect(() => {
     if (!currentUser) {
@@ -28,10 +36,39 @@ const ChatPage = () => {
       return;
     }
     loadContacts();
-    if (selectedUserId) {
-      loadMessages(selectedUserId);
-    }
+    
+    // Subscribe to new messages
+    const subscription = subscribeToMessages(currentUser.id, (payload) => {
+      const newMessage = payload.new;
+      if (newMessage.sender_id === selectedUserId || newMessage.receiver_id === selectedUserId) {
+        setMessages(prev => [...prev, newMessage]);
+      }
+      // Update last message in contacts
+      setContacts(prev => prev.map(contact => {
+        if (contact.id === newMessage.sender_id) {
+          return {
+            ...contact,
+            lastMessage: newMessage.content,
+            lastMessageTime: newMessage.created_at
+          };
+        }
+        return contact;
+      }));
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [currentUser, selectedUserId]);
+
+  useEffect(() => {
+    if (selectedUserId) {
+      setPage(1);
+      setHasMore(true);
+      setMessages([]);
+      loadMessages(selectedUserId, 1, true);
+    }
+  }, [selectedUserId]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -39,45 +76,58 @@ const ChatPage = () => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [selectedUserId, messages]);
+  }, [messages]);
 
-  const loadContacts = () => {
+  const loadContacts = async () => {
     try {
-      // Sample contacts for demo
-      const sampleContacts = [
-        {
-          id: '1',
-          name: 'John Doe',
-          email: 'john@example.com',
-          lastMessage: 'Hey, would love to connect!',
-          timestamp: new Date().toISOString()
-        },
-        {
-          id: '2',
-          name: 'Jane Smith',
-          email: 'jane@example.com',
-          lastMessage: 'Great idea! Let\'s discuss more.',
-          timestamp: new Date().toISOString()
-        },
-        {
-          id: '3',
-          name: 'Mike Johnson',
-          email: 'mike@example.com',
-          lastMessage: 'Thanks for reaching out!',
-          timestamp: new Date().toISOString()
-        }
-      ];
-      setContacts(sampleContacts);
+      setLoadingContacts(true);
+      const profiles = await getProfiles();
+      // Filter out current user and get only matched users
+      const matchedProfiles = profiles.filter(profile => 
+        profile.id !== currentUser.id && 
+        !profile.is_admin
+      );
+      
+      setContacts(matchedProfiles.map(profile => ({
+        id: profile.id,
+        name: profile.name || profile.email,
+        email: profile.email,
+        lastMessage: '',
+        timestamp: new Date().toISOString()
+      })));
     } catch (error) {
       console.error('Error loading contacts:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load contacts. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingContacts(false);
     }
   };
 
-  const loadMessages = (userId) => {
+  const loadMessages = async (userId, pageNum, isNewChat = false) => {
     try {
-      const storedChats = JSON.parse(localStorage.getItem(`founderMatchChats_${currentUser.id}`) || '{}');
-      const chatMessages = storedChats[userId] || [];
-      setMessages(chatMessages);
+      setLoadingMessages(true);
+      const { messages: messageData, hasMore: more } = await getMessages(currentUser.id, userId, pageNum);
+      
+      if (pageNum === 1) {
+        setMessages(messageData);
+      } else {
+        setMessages(prev => [...messageData, ...prev]);
+      }
+      
+      setHasMore(more);
+      setPage(pageNum);
+
+      // If this is a new chat, scroll to bottom after messages load
+      if (isNewChat) {
+        setTimeout(() => {
+          scrollToBottom();
+          setInitialScrollDone(true);
+        }, 100);
+      }
     } catch (error) {
       console.error('Error loading messages:', error);
       toast({
@@ -85,31 +135,28 @@ const ChatPage = () => {
         description: "Failed to load messages. Please try again.",
         variant: "destructive"
       });
+    } finally {
+      setLoadingMessages(false);
+      setIsLoadingMore(false);
     }
   };
 
-  const sendMessage = async (e) => {
+  const handleScroll = async (e) => {
+    if (!initialScrollDone) return;
+    
+    const element = e.target;
+    if (element.scrollTop === 0 && hasMore && !isLoadingMore && !loadingMessages) {
+      setIsLoadingMore(true);
+      await loadMessages(selectedUserId, page + 1);
+    }
+  };
+
+  const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || !selectedUserId) return;
 
     try {
-      const message = {
-        id: Date.now().toString(),
-        content: newMessage.trim(),
-        sender_id: currentUser.id,
-        receiver_id: selectedUserId,
-        created_at: new Date().toISOString()
-      };
-
-      // Store message in localStorage
-      const storedChats = JSON.parse(localStorage.getItem(`founderMatchChats_${currentUser.id}`) || '{}');
-      if (!storedChats[selectedUserId]) {
-        storedChats[selectedUserId] = [];
-      }
-      storedChats[selectedUserId].push(message);
-      localStorage.setItem(`founderMatchChats_${currentUser.id}`, JSON.stringify(storedChats));
-
-      setMessages(prev => [...prev, message]);
+      await sendMessage(currentUser.id, selectedUserId, newMessage.trim());
       setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
@@ -123,25 +170,20 @@ const ChatPage = () => {
 
   const selectContact = (userId) => {
     setSelectedUserId(userId);
-    loadMessages(userId);
   };
 
   const handleDeleteConversation = async (conversationId) => {
     try {
-      // Delete all messages in the conversation
-      const storedChats = JSON.parse(localStorage.getItem(`founderMatchChats_${currentUser.id}`) || '{}');
-      const updatedChats = { ...storedChats };
-      delete updatedChats[conversationId];
-      localStorage.setItem(`founderMatchChats_${currentUser.id}`, JSON.stringify(updatedChats));
+      await deleteConversation(currentUser.id, conversationId);
 
       if (selectedUserId === conversationId) {
         setSelectedUserId(null);
+        setMessages([]);
       }
 
       toast({
         title: 'Conversation Deleted',
         description: 'The chat history has been removed.',
-        variant: 'destructive',
       });
     } catch (error) {
       console.error('Error deleting conversation:', error);
@@ -154,7 +196,8 @@ const ChatPage = () => {
   };
 
   const filteredContacts = contacts.filter(contact =>
-    contact.name.toLowerCase().includes(searchTerm.toLowerCase())
+    contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    contact.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (!currentUser) {
@@ -285,7 +328,17 @@ const ChatPage = () => {
                 </div>
                 <h2 className="text-lg font-semibold">{selectedUserId}</h2>
               </div>
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div 
+                className="flex-1 overflow-y-auto p-6 space-y-4"
+                ref={chatContainerRef}
+                onScroll={handleScroll}
+              >
+                {isLoadingMore && (
+                  <div className="text-center py-2">
+                    <div className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-red-500 border-t-transparent"></div>
+                    <span className="ml-2 text-sm text-gray-500">Loading more messages...</span>
+                  </div>
+                )}
                 {messages.map(msg => (
                   <motion.div
                     key={msg.id}
@@ -316,13 +369,7 @@ const ChatPage = () => {
                     </div>
                   </motion.div>
                 ))}
-                 {messages.length === 0 && (
-                    <div className="text-center text-gray-400 pt-10">
-                        <MessageSquare size={48} className="mx-auto mb-2 opacity-50"/>
-                        <p>No messages in this conversation yet.</p>
-                        <p className="text-sm">Send a message to start chatting!</p>
-                    </div>
-                )}
+                <div ref={messagesEndRef} />
               </div>
               <div className="p-4 border-t border-gray-200 bg-white sticky bottom-0">
                 <div className="flex items-center space-x-2">
@@ -333,14 +380,14 @@ const ChatPage = () => {
                     onKeyPress={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
-                        sendMessage(e);
+                        handleSendMessage(e);
                       }
                     }}
                     className="flex-1 resize-none"
                     rows={1}
                   />
                   <Button 
-                    onClick={sendMessage} 
+                    onClick={handleSendMessage} 
                     className="gradient-bg text-white"
                     disabled={!newMessage.trim()}
                   >

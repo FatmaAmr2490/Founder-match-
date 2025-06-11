@@ -136,7 +136,7 @@ export const getMatches = async (userId) => {
 
 // Message helper functions
 export const sendMessage = async (senderId, receiverId, content) => {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('messages')
     .insert([
       {
@@ -144,20 +144,39 @@ export const sendMessage = async (senderId, receiverId, content) => {
         receiver_id: receiverId,
         content,
       }
-    ]);
+    ])
+    .select();
 
   if (error) throw error;
+  return data[0];
 };
 
-export const getMessages = async (userId1, userId2) => {
-  const { data, error } = await supabase
+export const getMessages = async (userId1, userId2, page = 1, pageSize = 20) => {
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  const { data, error, count } = await supabase
     .from('messages')
-    .select('*')
+    .select('*', { count: 'exact' })
     .or(`and(sender_id.eq.${userId1},receiver_id.eq.${userId2}),and(sender_id.eq.${userId2},receiver_id.eq.${userId1})`)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: false })
+    .range(from, to);
 
   if (error) throw error;
-  return data;
+  return { 
+    messages: data.reverse(), 
+    totalCount: count,
+    hasMore: count > (page * pageSize)
+  };
+};
+
+export const deleteConversation = async (userId1, userId2) => {
+  const { error } = await supabase
+    .from('messages')
+    .delete()
+    .or(`and(sender_id.eq.${userId1},receiver_id.eq.${userId2}),and(sender_id.eq.${userId2},receiver_id.eq.${userId1})`);
+
+  if (error) throw error;
 };
 
 // Real-time subscriptions
@@ -170,9 +189,12 @@ export const subscribeToMessages = (userId, callback) => {
         event: 'INSERT',
         schema: 'public',
         table: 'messages',
-        filter: `receiver_id=eq.${userId}`,
+        filter: `or(sender_id.eq.${userId},receiver_id.eq.${userId})`,
       },
-      callback
+      (payload) => {
+        console.log('New message received:', payload);
+        callback(payload);
+      }
     )
     .subscribe();
 };

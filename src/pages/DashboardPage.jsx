@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
-import { Users, MessageCircle, User, Mail, GraduationCap, Briefcase, Heart, Clock, ArrowLeft, LogOut, MessageSquare as ChatIcon } from 'lucide-react';
+import { Users, MessageCircle, User, Mail, GraduationCap, Briefcase, Heart, Clock, ArrowLeft, LogOut, MessageSquare as ChatIcon, Settings } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getProfiles, createMatch, getMatches } from '@/lib/supabase';
 
@@ -184,74 +184,114 @@ const DashboardPage = () => {
 
       <div className="container mx-auto px-4 py-8">
         <motion.div
-          initial={{ opacity: 0, y: 40 }}
+          className="grid gap-8 md:grid-cols-12"
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.5 }}
         >
-          <Card className="mb-8 shadow-lg border-0">
-            <CardHeader>
-              <CardTitle className="text-2xl">Your Profile</CardTitle>
-            </CardHeader>
-            <CardContent className="grid md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div className="flex items-start space-x-4">
-                  <User className="h-5 w-5 text-red-600 mt-1" />
-                  <div>
-                    <p className="font-medium">{currentUser.name}</p>
-                    <p className="text-sm text-gray-500">Name</p>
+          {/* User Profile Section */}
+          <div className="md:col-span-4">
+            <Card className="shadow-lg border-0">
+              <CardContent className="p-6">
+                <div className="text-center mb-6">
+                  <div className="w-24 h-24 rounded-full bg-red-100 mx-auto mb-4 flex items-center justify-center">
+                    <User className="w-12 h-12 text-red-600" />
                   </div>
+                  <h2 className="text-2xl font-bold mb-1">{currentUser.name || 'Complete Your Profile'}</h2>
+                  <p className="text-gray-500">{currentUser.email}</p>
                 </div>
-                <div className="flex items-start space-x-4">
-                  <Mail className="h-5 w-5 text-red-600 mt-1" />
-                  <div>
-                    <p className="font-medium">{currentUser.email}</p>
-                    <p className="text-sm text-gray-500">Email</p>
-                  </div>
-                </div>
-                {currentUser.university && (
-                  <div className="flex items-start space-x-4">
-                    <GraduationCap className="h-5 w-5 text-red-600 mt-1" />
-                    <div>
-                      <p className="font-medium">{currentUser.university}</p>
-                      <p className="text-sm text-gray-500">Education</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="space-y-4">
-                <div className="flex items-start space-x-4">
-                  <Briefcase className="h-5 w-5 text-red-600 mt-1" />
-                  <div>
-                    <p className="font-medium">
-                      {Array.isArray(currentUser.skills) ? currentUser.skills.join(', ') : 'Not specified'}
-                    </p>
-                    <p className="text-sm text-gray-500">Skills</p>
-                  </div>
-                </div>
-                {currentUser.interests && currentUser.interests.length > 0 && (
-                  <div className="flex items-start space-x-4">
-                    <Heart className="h-5 w-5 text-red-600 mt-1" />
-                    <div>
-                      <p className="font-medium">{Array.isArray(currentUser.interests) ? currentUser.interests.join(', ') : ''}</p>
-                      <p className="text-sm text-gray-500">Interests</p>
-                    </div>
-                  </div>
-                )}
-                {currentUser.availability && (
-                  <div className="flex items-start space-x-4">
-                    <Clock className="h-5 w-5 text-red-600 mt-1" />
-                    <div>
-                      <p className="font-medium">{currentUser.availability}</p>
-                      <p className="text-sm text-gray-500">Availability</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
 
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold mb-6">Your Top Matches</h2>
+                <div className="space-y-4">
+                  {/* Profile Completion */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-500 mb-2">Profile Completion</h3>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-red-500 h-2 rounded-full" 
+                        style={{ 
+                          width: `${calculateProfileCompletion(currentUser)}%` 
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Skills */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-500 mb-2">Skills</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {currentUser.skills && currentUser.skills.length > 0 ? (
+                        currentUser.skills.map((skill, index) => (
+                          <span 
+                            key={index}
+                            className="px-3 py-1 bg-red-100 text-red-600 rounded-full text-sm"
+                          >
+                            {skill}
+                          </span>
+                        ))
+                      ) : (
+                        <p className="text-gray-400 text-sm">No skills added yet</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Interests */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-500 mb-2">Interests</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {currentUser.interests && currentUser.interests.length > 0 ? (
+                        currentUser.interests.map((interest, index) => (
+                          <span 
+                            key={index}
+                            className="px-3 py-1 bg-blue-100 text-blue-600 rounded-full text-sm"
+                          >
+                            {interest}
+                          </span>
+                        ))
+                      ) : (
+                        <p className="text-gray-400 text-sm">No interests added yet</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Additional Info */}
+                  <div className="space-y-3">
+                    {currentUser.university && (
+                      <div className="flex items-center text-gray-600">
+                        <GraduationCap className="w-4 h-4 mr-2" />
+                        <span>{currentUser.university}</span>
+                      </div>
+                    )}
+                    {currentUser.availability && (
+                      <div className="flex items-center text-gray-600">
+                        <Clock className="w-4 h-4 mr-2" />
+                        <span>{currentUser.availability}</span>
+                      </div>
+                    )}
+                    {currentUser.bio && (
+                      <div className="mt-4">
+                        <h3 className="text-sm font-semibold text-gray-500 mb-2">About</h3>
+                        <p className="text-gray-600 text-sm">{currentUser.bio}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Edit Profile Button */}
+                  <Button 
+                    className="w-full"
+                    variant="outline"
+                    onClick={() => navigate('/profile')}
+                  >
+                    <Settings className="w-4 h-4 mr-2" />
+                    Edit Profile
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Matches Section */}
+          <div className="md:col-span-8">
+            <h2 className="text-2xl font-bold mb-6">Your Matches</h2>
             {matches.length === 0 ? (
               <Card className="shadow-lg border-0">
                 <CardContent className="p-6 text-center text-gray-500">
@@ -375,6 +415,21 @@ const DashboardPage = () => {
       </div>
     </div>
   );
+};
+
+// Helper function to calculate profile completion percentage
+const calculateProfileCompletion = (user) => {
+  const fields = [
+    user.name,
+    user.skills?.length > 0,
+    user.interests?.length > 0,
+    user.university,
+    user.availability,
+    user.bio
+  ];
+  
+  const completedFields = fields.filter(Boolean).length;
+  return Math.round((completedFields / fields.length) * 100);
 };
 
 export default DashboardPage;
