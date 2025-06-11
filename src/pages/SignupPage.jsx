@@ -56,7 +56,14 @@ const SignupPage = () => {
     }
 
     try {
-      const { success, isAdmin, message } = await signup(formData);
+      // Convert skills and interests to arrays
+      const processedData = {
+        ...formData,
+        skills: formData.skills.split(',').map(item => item.trim()).filter(Boolean),
+        interests: formData.interests ? formData.interests.split(',').map(item => item.trim()).filter(Boolean) : []
+      };
+
+      const { success, isAdmin, message } = await signup(processedData);
 
       if (success) {
         toast({

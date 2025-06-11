@@ -161,13 +161,15 @@ const AdminUserProfilePage = () => {
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              {user.skills && (
+              {user.skills && user.skills.length > 0 && (
                 <div>
                   <h3 className="text-lg font-semibold mb-2 flex items-center">
                     <Briefcase className="h-5 w-5 mr-2 text-red-600" />
                     Skills & Expertise
                   </h3>
-                  <p className="text-gray-600">{user.skills}</p>
+                  <p className="text-gray-600">
+                    {Array.isArray(user.skills) ? user.skills.join(', ') : 'Not specified'}
+                  </p>
                 </div>
               )}
 
@@ -181,13 +183,15 @@ const AdminUserProfilePage = () => {
                 </div>
               )}
 
-              {user.interests && (
+              {user.interests && user.interests.length > 0 && (
                 <div>
                   <h3 className="text-lg font-semibold mb-2 flex items-center">
                     <Star className="h-5 w-5 mr-2 text-red-600" />
                     Interests
                   </h3>
-                  <p className="text-gray-600">{user.interests}</p>
+                  <p className="text-gray-600">
+                    {Array.isArray(user.interests) ? user.interests.join(', ') : ''}
+                  </p>
                 </div>
               )}
 

@@ -32,12 +32,12 @@ const DashboardPage = () => {
 
     // Compare skills (35 points max)
     if (user1.skills && user2.skills) {
-      const skills1 = user1.skills.toLowerCase().split(',').map(s => s.trim());
-      const skills2 = user2.skills.toLowerCase().split(',').map(s => s.trim());
+      const skills1 = Array.isArray(user1.skills) ? user1.skills : [];
+      const skills2 = Array.isArray(user2.skills) ? user2.skills : [];
       
       // Find unique skills each user has
-      const uniqueSkills1 = skills1.filter(s => !skills2.includes(s));
-      const uniqueSkills2 = skills2.filter(s => !skills1.includes(s));
+      const uniqueSkills1 = skills1.filter(s => !skills2.includes(s.toLowerCase()));
+      const uniqueSkills2 = skills2.filter(s => !skills1.includes(s.toLowerCase()));
       
       if (uniqueSkills1.length > 0 && uniqueSkills2.length > 0) {
         // Both users have complementary skills
@@ -50,10 +50,12 @@ const DashboardPage = () => {
 
     // Compare interests (25 points max)
     if (user1.interests && user2.interests) {
-      const interests1 = user1.interests.toLowerCase().split(',').map(i => i.trim());
-      const interests2 = user2.interests.toLowerCase().split(',').map(i => i.trim());
+      const interests1 = Array.isArray(user1.interests) ? user1.interests : [];
+      const interests2 = Array.isArray(user2.interests) ? user2.interests : [];
       
-      const sharedInterests = interests1.filter(i => interests2.includes(i));
+      const sharedInterests = interests1.filter(i => 
+        interests2.some(j => j.toLowerCase() === i.toLowerCase())
+      );
       score += Math.min(sharedInterests.length * 25, 25);
     }
 
@@ -208,15 +210,17 @@ const DashboardPage = () => {
                 <div className="flex items-start space-x-4">
                   <Briefcase className="h-5 w-5 text-red-600 mt-1" />
                   <div>
-                    <p className="font-medium">{currentUser.skills || 'Not specified'}</p>
+                    <p className="font-medium">
+                      {Array.isArray(currentUser.skills) ? currentUser.skills.join(', ') : 'Not specified'}
+                    </p>
                     <p className="text-sm text-gray-500">Skills</p>
                   </div>
                 </div>
-                {currentUser.interests && (
+                {currentUser.interests && currentUser.interests.length > 0 && (
                   <div className="flex items-start space-x-4">
                     <Heart className="h-5 w-5 text-red-600 mt-1" />
                     <div>
-                      <p className="font-medium">{currentUser.interests}</p>
+                      <p className="font-medium">{Array.isArray(currentUser.interests) ? currentUser.interests.join(', ') : ''}</p>
                       <p className="text-sm text-gray-500">Interests</p>
                     </div>
                   </div>
@@ -275,12 +279,16 @@ const DashboardPage = () => {
                         <div className="space-y-4">
                           <div>
                             <p className="text-sm text-gray-500 mb-1">Skills</p>
-                            <p className="font-medium">{match.skills || 'Not specified'}</p>
+                            <p className="font-medium">
+                              {Array.isArray(match.skills) ? match.skills.join(', ') : 'Not specified'}
+                            </p>
                           </div>
-                          {match.interests && (
+                          {match.interests && match.interests.length > 0 && (
                             <div>
                               <p className="text-sm text-gray-500 mb-1">Interests</p>
-                              <p className="font-medium">{match.interests}</p>
+                              <p className="font-medium">
+                                {Array.isArray(match.interests) ? match.interests.join(', ') : ''}
+                              </p>
                             </div>
                           )}
                           {match.availability && (
