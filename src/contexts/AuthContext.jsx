@@ -10,20 +10,31 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     // Check active sessions and sets the user
-    const session = supabase.auth.getSession();
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+          await refreshUser();
+        } else {
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error checking session:', error);
+        setLoading(false);
+      }
+    };
 
-    if (session) {
-      refreshUser();
-    } else {
-      setLoading(false);
-    }
+    initializeAuth();
 
     // Listen for changes on auth state (sign in, sign out, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN') {
+      console.log('Auth state changed:', event, session);
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         await refreshUser();
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
+        setLoading(false);
       }
     });
 
@@ -35,8 +46,14 @@ export const AuthProvider = ({ children }) => {
   const refreshUser = async () => {
     try {
       const currentUser = await getCurrentUser();
-      setUser(currentUser);
-      setError(null);
+      if (currentUser) {
+        setUser(currentUser);
+        setError(null);
+      } else {
+        // If no user profile exists, sign out
+        await supabase.auth.signOut();
+        setUser(null);
+      }
     } catch (error) {
       console.error('Error refreshing user:', error);
       setError(error.message);
@@ -52,6 +69,10 @@ export const AuthProvider = ({ children }) => {
       
       if (error) throw error;
       
+      if (!authUser) {
+        throw new Error('No user returned from login');
+      }
+
       setUser(authUser);
       return { success: true, isAdmin: authUser.is_admin };
     } catch (error) {
@@ -72,6 +93,10 @@ export const AuthProvider = ({ children }) => {
       
       if (error) throw error;
       
+      if (!newUser) {
+        throw new Error('No user returned from signup');
+      }
+
       setUser(newUser);
       return { success: true, isAdmin: newUser.is_admin };
     } catch (error) {
