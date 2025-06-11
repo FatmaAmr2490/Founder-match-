@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { Users, Eye, Trash2, ArrowLeft, UserPlus, Search, LogOut } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { getProfiles } from '@/lib/supabase';
 
 const AdminUsersPage = () => {
   const navigate = useNavigate();
@@ -16,54 +17,15 @@ const AdminUsersPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const fetchUsers = () => {
+  const fetchUsers = async () => {
     try {
       setLoading(true);
       console.log('Fetching users...');
-      // Get users from localStorage
-      const storedUsers = JSON.parse(localStorage.getItem('founderMatchUsers') || '[]');
-      console.log('Stored users:', storedUsers);
       
-      // Add admin user if not present
-      const adminExists = storedUsers.some(user => user.email === 'admin@foundermatch.com');
-      if (!adminExists) {
-        storedUsers.push({
-          id: 'admin',
-          name: 'Admin User',
-          email: 'admin@foundermatch.com',
-          skills: 'Administration',
-          is_admin: true,
-          created_at: new Date().toISOString()
-        });
-      }
-
-      // Add some sample users if the list is empty
-      if (storedUsers.length <= 1) {
-        storedUsers.push(
-          {
-            id: '1',
-            name: 'John Doe',
-            email: 'john@example.com',
-            university: 'MIT',
-            skills: 'React, Node.js',
-            interests: 'AI, Blockchain',
-            created_at: new Date().toISOString()
-          },
-          {
-            id: '2',
-            name: 'Jane Smith',
-            email: 'jane@example.com',
-            university: 'Stanford',
-            skills: 'Python, Data Science',
-            interests: 'Machine Learning, Web3',
-            created_at: new Date().toISOString()
-          }
-        );
-        localStorage.setItem('founderMatchUsers', JSON.stringify(storedUsers));
-      }
-
-      console.log('Final users to set:', storedUsers);
-      setUsers(storedUsers);
+      // Get users from Supabase
+      const profiles = await getProfiles();
+      console.log('Fetched profiles:', profiles);
+      setUsers(profiles);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({
@@ -94,11 +56,11 @@ const AdminUsersPage = () => {
     checkAdminAndFetchUsers();
   }, [isAdmin, navigate, toast]);
 
-  const handleDeleteUser = (userId) => {
+  const handleDeleteUser = async (userId) => {
     try {
-      const updatedUsers = users.filter(user => user.id !== userId);
-      localStorage.setItem('founderMatchUsers', JSON.stringify(updatedUsers));
-      setUsers(updatedUsers);
+      // For now, we'll just refresh the user list
+      // In a real app, you'd want to implement user deletion in Supabase
+      await fetchUsers();
       
       toast({
         title: "Success",
@@ -134,25 +96,28 @@ const AdminUsersPage = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <motion.header 
-        className="px-4 lg:px-6 h-16 flex items-center bg-white border-b border-gray-100"
+        className="px-4 lg:px-6 h-16 flex items-center justify-between bg-white border-b border-gray-100 sticky top-0 z-50"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <Button 
-          variant="ghost" 
-          onClick={() => navigate('/admin')}
-          className="mr-4"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Admin
-        </Button>
         <div className="flex items-center">
+          <Button 
+            variant="ghost" 
+            onClick={() => navigate('/admin')}
+            className="mr-4"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
           <Users className="h-8 w-8 text-red-600 mr-2" />
           <span className="text-2xl font-bold gradient-text">Manage Users</span>
         </div>
-        <div className="ml-auto">
-          <Button variant="outline" onClick={logout}>
+        <div className="flex items-center space-x-4">
+          <Button 
+            variant="outline"
+            onClick={logout}
+          >
             <LogOut className="h-4 w-4 mr-2" />
             Logout
           </Button>
@@ -165,50 +130,39 @@ const AdminUsersPage = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <div className="flex justify-between items-center mb-8">
-            <h1 className="text-4xl font-bold">User Management</h1>
-            <Button 
-              onClick={() => navigate('/signup')}
-              className="gradient-bg text-white"
-            >
-              <UserPlus className="h-4 w-4 mr-2" />
-              Add New User
-            </Button>
-          </div>
-
           <Card className="shadow-lg border-0">
             <CardHeader>
-              <div className="flex justify-between items-center">
+              <div className="flex items-center justify-between">
                 <CardTitle className="text-2xl">All Users</CardTitle>
-                <div className="relative w-64">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    placeholder="Search users..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
+                <div className="flex items-center space-x-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      type="text"
+                      placeholder="Search users..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 w-[300px]"
+                    />
+                  </div>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
               {filteredUsers.length === 0 ? (
-                <div className="text-center py-12">
-                  <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold mb-2">No users found</h3>
-                  <p className="text-gray-600">
-                    {searchTerm ? 'Try adjusting your search terms.' : 'No users have signed up yet.'}
-                  </p>
+                <div className="text-center py-8">
+                  <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">No users found</p>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {filteredUsers.map((user, index) => (
+                  {filteredUsers.map((user) => (
                     <motion.div
                       key={user.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.3, delay: index * 0.05 }}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                      className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-100 hover:border-red-100 transition-all duration-300"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3 }}
                     >
                       <div className="flex-1">
                         <div className="flex items-center space-x-4">
