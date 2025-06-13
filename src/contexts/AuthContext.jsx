@@ -21,6 +21,7 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (error) {
         console.error('Error checking session:', error);
+        setError(error.message);
         setLoading(false);
       }
     };
@@ -53,10 +54,12 @@ export const AuthProvider = ({ children }) => {
         // If no user profile exists, sign out
         await supabase.auth.signOut();
         setUser(null);
+        setError('No profile found. Please sign up first.');
       }
     } catch (error) {
       console.error('Error refreshing user:', error);
       setError(error.message);
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -65,6 +68,8 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       setLoading(true);
+      setError(null);
+      
       const { user: authUser, error } = await signIn(email, password);
       
       if (error) throw error;
@@ -77,6 +82,7 @@ export const AuthProvider = ({ children }) => {
       return { success: true, isAdmin: authUser.is_admin };
     } catch (error) {
       console.error('Login error:', error);
+      setError(error.message);
       return { 
         success: false, 
         message: error.message || 'Failed to log in. Please check your credentials and try again.' 
@@ -89,6 +95,8 @@ export const AuthProvider = ({ children }) => {
   const signup = async (userData) => {
     try {
       setLoading(true);
+      setError(null);
+      
       const { user: newUser, error } = await signUp(userData);
       
       if (error) throw error;
@@ -101,6 +109,7 @@ export const AuthProvider = ({ children }) => {
       return { success: true, isAdmin: newUser.is_admin };
     } catch (error) {
       console.error('Signup error:', error);
+      setError(error.message);
       return { 
         success: false, 
         message: error.message || 'Failed to create account. Please try again.' 
@@ -113,6 +122,8 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       setLoading(true);
+      setError(null);
+      
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       
@@ -120,6 +131,7 @@ export const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (error) {
       console.error('Logout error:', error);
+      setError(error.message);
       return { 
         success: false, 
         message: error.message || 'Failed to log out. Please try again.' 

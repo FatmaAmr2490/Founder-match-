@@ -4,6 +4,7 @@ SET session_replication_role = 'replica';
 -- Drop existing triggers, functions, and tables if any
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 DROP FUNCTION IF EXISTS handle_new_user CASCADE;
+DROP FUNCTION IF EXISTS handle_updated_at CASCADE;
 DROP TABLE IF EXISTS messages CASCADE;
 DROP TABLE IF EXISTS matches CASCADE;
 DROP TABLE IF EXISTS profiles CASCADE;
@@ -18,8 +19,8 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Profiles table
 CREATE TABLE profiles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    auth_id UUID,
-    email TEXT NOT NULL,
+    auth_id UUID UNIQUE,
+    email TEXT UNIQUE NOT NULL,
     name TEXT,
     university TEXT,
     skills TEXT[] DEFAULT ARRAY[]::TEXT[],
@@ -28,35 +29,28 @@ CREATE TABLE profiles (
     bio TEXT,
     is_admin BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT unique_auth_id UNIQUE (auth_id),
-    CONSTRAINT unique_email UNIQUE (email)
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Matches table
 CREATE TABLE matches (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user1_id UUID NOT NULL,
-    user2_id UUID NOT NULL,
+    user1_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+    user2_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
     match_score INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT fk_user1 FOREIGN KEY (user1_id) REFERENCES profiles(id) ON DELETE CASCADE,
-    CONSTRAINT fk_user2 FOREIGN KEY (user2_id) REFERENCES profiles(id) ON DELETE CASCADE,
-    CONSTRAINT unique_match UNIQUE (user1_id, user2_id),
-    CONSTRAINT no_self_match CHECK (user1_id <> user2_id)
+    UNIQUE(user1_id, user2_id)
 );
 
 -- Messages table
 CREATE TABLE messages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    sender_id UUID NOT NULL,
-    receiver_id UUID NOT NULL,
+    sender_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+    receiver_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
     content TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT fk_sender FOREIGN KEY (sender_id) REFERENCES profiles(id) ON DELETE CASCADE,
-    CONSTRAINT fk_receiver FOREIGN KEY (receiver_id) REFERENCES profiles(id) ON DELETE CASCADE
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ============================
@@ -123,15 +117,15 @@ CREATE POLICY "Public profiles are viewable by everyone"
 
 CREATE POLICY "Users can insert own profile"
     ON profiles FOR INSERT
-    WITH CHECK (auth.uid()::text = auth_id::text);
+    WITH CHECK (auth.uid() = auth_id);
 
 CREATE POLICY "Users can update own profile"
     ON profiles FOR UPDATE
-    USING (auth.uid()::text = auth_id::text);
+    USING (auth.uid() = auth_id);
 
 CREATE POLICY "Users can delete own profile"
     ON profiles FOR DELETE
-    USING (auth.uid()::text = auth_id::text);
+    USING (auth.uid() = auth_id);
 
 -- Matches policies
 CREATE POLICY "Users can view their own matches"
@@ -192,16 +186,8 @@ CREATE POLICY "Users can delete their own messages"
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-    INSERT INTO public.profiles (
-        auth_id,
-        email,
-        is_admin
-    )
-    VALUES (
-        NEW.id,
-        NEW.email,
-        NEW.email = 'admin@foundermatch.com'
-    )
+    INSERT INTO public.profiles (auth_id, email, is_admin)
+    VALUES (NEW.id, NEW.email, NEW.email = 'admin@foundermatch.com')
     ON CONFLICT (auth_id) DO NOTHING;
     
     RETURN NEW;
