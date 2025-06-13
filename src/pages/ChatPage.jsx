@@ -13,6 +13,7 @@ const ChatPage = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const messagesEndRef = useRef(null);
+
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -45,28 +46,31 @@ const ChatPage = () => {
     };
 
     fetchReceiverProfile();
-    loadMessages(true); // Reset messages when changing chat
+    loadMessages(true);
 
-    // Subscribe to new messages
     const channel = supabase
       .channel('chat-messages')
-      .on('postgres_changes', {
-        event: '*', // Listen to all events
-        schema: 'public',
-        table: 'messages',
-        filter: `sender_id.eq.${user.id}.or.receiver_id.eq.${user.id}`,
-      }, (payload) => {
-        // Only handle messages relevant to this chat
-        const msg = payload.new;
-        if ((msg.sender_id === user.id && msg.receiver_id === receiverId) ||
-            (msg.sender_id === receiverId && msg.receiver_id === user.id)) {
-          handleNewMessage(payload);
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+        },
+        (payload) => {
+          const msg = payload.new;
+          if (
+            (msg.sender_id === user.id && msg.receiver_id === receiverId) ||
+            (msg.sender_id === receiverId && msg.receiver_id === user.id)
+          ) {
+            handleNewMessage(payload);
+          }
         }
-      })
+      )
       .subscribe();
 
     return () => {
-      if (channel) channel.unsubscribe();
+      supabase.removeChannel(channel);
     };
   }, [user, receiverId]);
 
@@ -76,13 +80,18 @@ const ChatPage = () => {
     try {
       setLoading(true);
       const currentPage = reset ? 1 : page;
-      const { messages: newMessages, hasMore: moreMessages } = await getMessages(user.id, receiverId, currentPage);
+      const { messages: newMessages, hasMore: moreMessages } = await getMessages(
+        user.id,
+        receiverId,
+        currentPage
+      );
 
       if (reset) {
         setMessages(newMessages);
       } else {
-        setMessages(prev => [...prev, ...newMessages]);
+        setMessages((prev) => [...prev, ...newMessages]);
       }
+
       setHasMore(moreMessages);
       setPage(currentPage + 1);
     } catch (error) {
@@ -101,16 +110,18 @@ const ChatPage = () => {
     const newMsg = payload.new;
     if (!newMsg) return;
 
-    // Add the message only if it's not already in the list
-    setMessages(prev => {
-      const messageExists = prev.some(msg => msg.id === newMsg.id);
-      if (messageExists) return prev;
+    setMessages((prev) => {
+      const exists = prev.some((msg) => msg.id === newMsg.id);
+      if (exists) return prev;
 
-      return [...prev, {
-        ...newMsg,
-        sender_name: newMsg.sender_id === user.id ? user.name : receiverProfile?.name,
-        receiver_name: newMsg.receiver_id === user.id ? user.name : receiverProfile?.name
-      }];
+      return [
+        ...prev,
+        {
+          ...newMsg,
+          sender_name: newMsg.sender_id === user.id ? 'You' : receiverProfile?.name || 'User',
+          receiver_name: newMsg.receiver_id === user.id ? 'You' : receiverProfile?.name || 'User',
+        },
+      ];
     });
   };
 
@@ -124,11 +135,11 @@ const ChatPage = () => {
       setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
-    toast({
+      toast({
         title: 'Error',
         description: 'Could not send message. Please try again.',
-      variant: 'destructive',
-    });
+        variant: 'destructive',
+      });
     } finally {
       setSending(false);
     }
@@ -149,13 +160,13 @@ const ChatPage = () => {
       </div>
     );
   }
-  
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white shadow-sm p-4 flex items-center">
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           size="icon"
           className="mr-2"
           onClick={() => window.history.back()}
@@ -163,12 +174,8 @@ const ChatPage = () => {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h2 className="text-lg font-semibold">
-            {receiverProfile.name || 'Chat'}
-          </h2>
-          <p className="text-sm text-gray-500">
-            {receiverProfile.university || 'No university listed'}
-          </p>
+          <h2 className="text-lg font-semibold">{receiverProfile.name || 'Chat'}</h2>
+          <p className="text-sm text-gray-500">{receiverProfile.university || 'No university listed'}</p>
         </div>
       </div>
 
@@ -198,7 +205,9 @@ const ChatPage = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
-                className={`flex ${message.sender_id === user.id ? 'justify-end' : 'justify-start'}`}
+                className={`flex ${
+                  message.sender_id === user.id ? 'justify-end' : 'justify-start'
+                }`}
               >
                 <div
                   className={`max-w-[70%] rounded-lg p-3 ${
@@ -211,36 +220,36 @@ const ChatPage = () => {
                   <span className="text-xs opacity-70 mt-1 block">
                     {new Date(message.created_at).toLocaleTimeString()}
                   </span>
-                  </div>
+                </div>
               </motion.div>
             ))}
             <div ref={messagesEndRef} />
           </>
-                )}
-              </div>
+        )}
+      </div>
 
       {/* Message Input */}
       <form onSubmit={handleSend} className="p-4 bg-white shadow-lg">
         <div className="flex space-x-2">
           <Input
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
             placeholder="Type your message..."
             className="flex-1"
             disabled={sending}
-                  />
-                  <Button 
+          />
+          <Button
             type="submit"
             disabled={!newMessage.trim() || sending}
-                    className="gradient-bg text-white"
+            className="gradient-bg text-white"
           >
             {sending ? (
               <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
             ) : (
               <Send className="h-5 w-5" />
             )}
-                  </Button>
-                </div>
+          </Button>
+        </div>
       </form>
     </div>
   );
