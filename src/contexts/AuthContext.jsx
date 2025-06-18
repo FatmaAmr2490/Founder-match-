@@ -49,8 +49,16 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       setError(null);
       
-      // Placeholder for login
-      setUser(null);
+      // Set a mock user object to simulate a successful login
+      const mockUser = {
+        id: 1,
+        email,
+        is_admin: false,
+        name: 'Demo User',
+        role: 'founder',
+        status: 'active',
+      };
+      setUser(mockUser);
       return { success: true, isAdmin: false };
     } catch (error) {
       console.error('Login error:', error);
