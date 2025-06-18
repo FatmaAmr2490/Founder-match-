@@ -10,13 +10,13 @@ import { useAuth } from '@/contexts/AuthContext';
 const AdminPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { logout, isAdmin } = useAuth();
+  const { user, logout } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // Check if user is admin, if not redirect to dashboard
-    if (!isAdmin) {
+    if (!user?.is_admin) {
       toast({
         title: "Access Denied",
         description: "You don't have permission to access the admin panel.",
@@ -26,7 +26,7 @@ const AdminPage = () => {
       return;
     }
     fetchUsers();
-  }, [isAdmin, navigate, toast]);
+  }, [user?.is_admin, navigate, toast]);
 
   const fetchUsers = () => {
     try {

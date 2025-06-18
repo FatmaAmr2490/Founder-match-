@@ -15,7 +15,7 @@ const STATUSES = ['Active', 'Looking', 'Open to Ideas'];
 const ProfilePage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { currentUser, refreshUser } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -32,24 +32,24 @@ const ProfilePage = () => {
   });
 
   useEffect(() => {
-    if (!currentUser) {
+    if (!user) {
       navigate('/login');
       return;
     }
     setFormData({
-      name: currentUser.name || '',
-      bio: currentUser.bio || '',
-      university: currentUser.university || '',
-      major: currentUser.major || '',
-      department: currentUser.department || '',
-      role: currentUser.role || ROLES[0],
-      status: currentUser.status || STATUSES[0],
-      availability: currentUser.availability || '',
-      skills: Array.isArray(currentUser.skills) ? currentUser.skills.join(', ') : '',
-      interests: Array.isArray(currentUser.interests) ? currentUser.interests.join(', ') : '',
-      portfolio_links: Array.isArray(currentUser.portfolio_links) ? currentUser.portfolio_links : ['']
+      name: user.name || '',
+      bio: user.bio || '',
+      university: user.university || '',
+      major: user.major || '',
+      department: user.department || '',
+      role: user.role || ROLES[0],
+      status: user.status || STATUSES[0],
+      availability: user.availability || '',
+      skills: Array.isArray(user.skills) ? user.skills.join(', ') : '',
+      interests: Array.isArray(user.interests) ? user.interests.join(', ') : '',
+      portfolio_links: Array.isArray(user.portfolio_links) ? user.portfolio_links : ['']
     });
-  }, [currentUser, navigate]);
+  }, [user, navigate]);
 
   // Profile completion logic
   const totalFields = 10;

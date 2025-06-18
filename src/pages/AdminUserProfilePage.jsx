@@ -11,13 +11,12 @@ const AdminUserProfilePage = () => {
   const navigate = useNavigate();
   const { userId } = useParams();
   const { toast } = useToast();
-  const { isAdmin } = useAuth();
-  const [user, setUser] = useState(null);
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // Check if user is admin, if not redirect to dashboard
-    if (!isAdmin) {
+    if (!user?.is_admin) {
       toast({
         title: "Access Denied",
         description: "You don't have permission to access this page.",
@@ -27,7 +26,7 @@ const AdminUserProfilePage = () => {
       return;
     }
     fetchUser();
-  }, [isAdmin, navigate, userId]);
+  }, [user?.is_admin, navigate, userId]);
 
   const fetchUser = () => {
     try {
@@ -48,7 +47,8 @@ const AdminUserProfilePage = () => {
       }
 
       console.log('Found user:', foundUser);
-      setUser(foundUser);
+      // Replace: setUser(foundUser);
+      // ... existing code ...
     } catch (error) {
       console.error('Error fetching user:', error);
       toast({

@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 const AdminUsersPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { currentUser, logout, isAdmin } = useAuth();
+  const { user, logout } = useAuth();
   const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
@@ -39,8 +39,8 @@ const AdminUsersPage = () => {
 
   useEffect(() => {
     const checkAdminAndFetchUsers = () => {
-      console.log('Checking admin status:', isAdmin);
-      if (!isAdmin) {
+      console.log('Checking admin status:', user?.is_admin);
+      if (!user?.is_admin) {
         toast({
           title: "Access Denied",
           description: "You don't have permission to access the admin panel.",
@@ -53,7 +53,7 @@ const AdminUsersPage = () => {
     };
 
     checkAdminAndFetchUsers();
-  }, [isAdmin, navigate, toast]);
+  }, [user?.is_admin, navigate, toast]);
 
   const handleDeleteUser = async (userId) => {
     try {
