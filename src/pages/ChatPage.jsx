@@ -29,7 +29,7 @@ const ChatPage = () => {
   const [receiverProfile, setReceiverProfile] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
-  const [quickReplies] = useState(['👍', 'Thanks!', '😊', 'Let's connect!']);
+  const [quickReplies] = useState(['��', 'Thanks!', '😊', "Let's connect!"]);
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
