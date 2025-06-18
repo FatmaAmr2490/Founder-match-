@@ -14,14 +14,6 @@ import { Picker } from 'emoji-mart';
 import 'emoji-mart/css/emoji-mart.css';
 dayjs.extend(relativeTime);
 
-const ICEBREAKERS = [
-  'What inspired you to join FounderMatch?',
-  'What startup idea are you most excited about?',
-  'What skills are you looking for in a co-founder?',
-  "What's your favorite project you've worked on?",
-  "What's one thing you wish you knew before starting your journey?"
-];
-
 const ChatPage = () => {
   const { receiverId } = useParams();
   const { user } = useAuth();
@@ -233,22 +225,6 @@ const ChatPage = () => {
       {/* Help Center at the very top */}
       <div className="sticky top-0 z-40 bg-gray-50">
         <HelpCenter />
-      </div>
-      {/* Icebreakers */}
-      <div className="bg-white border-b border-gray-100 px-4 py-3 sticky top-16 z-30">
-        <div className="flex flex-wrap gap-2 items-center">
-          <span className="font-semibold text-gray-700 mr-2">Icebreakers:</span>
-          {ICEBREAKERS.map((q, idx) => (
-            <button
-              key={idx}
-              className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs hover:bg-blue-100 transition"
-              onClick={() => setNewMessage(q)}
-              type="button"
-            >
-              {q}
-            </button>
-          ))}
-        </div>
       </div>
       {/* Header */}
       <div className="bg-white shadow-sm p-4 flex items-center">
