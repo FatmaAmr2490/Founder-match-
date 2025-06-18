@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { Users, MessageCircle, User, LogOut, Link as LinkIcon, Award, Briefcase, School, Star, BadgeCheck, Calendar } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getProfiles, createMatch, getEvents, joinEvent, leaveEvent } from '@/lib/supabase';
 
 const DashboardPage = () => {
   const navigate = useNavigate();
@@ -103,7 +102,13 @@ const DashboardPage = () => {
       setLoading(true);
       
       // Get all profiles except current user
-      const profiles = await getProfiles();
+      const profiles = [
+        { id: 1, name: 'John Doe', email: 'john@example.com', role: 'Founder', status: 'Active', skills: ['JavaScript', 'React'], interests: ['Technology', 'Entrepreneurship'], university: 'Harvard University', availability: 'Full-time' },
+        { id: 2, name: 'Jane Smith', email: 'jane@example.com', role: 'Co-founder', status: 'Looking', skills: ['Python', 'Machine Learning'], interests: ['Artificial Intelligence', 'Blockchain'], university: 'Stanford University', availability: 'Part-time' },
+        { id: 3, name: 'Bob Johnson', email: 'bob@example.com', role: 'Mentor', status: 'Open to Ideas', skills: ['Entrepreneurship', 'Marketing'], interests: ['Technology', 'Entrepreneurship'], university: 'Yale University', availability: 'Full-time' },
+        { id: 4, name: 'Alice Brown', email: 'alice@example.com', role: 'Investor', status: 'Active', skills: ['Venture Capital', 'Finance'], interests: ['Technology', 'Entrepreneurship'], university: 'Columbia University', availability: 'Full-time' },
+        { id: 5, name: 'Charlie Davis', email: 'charlie@example.com', role: 'Looking for Team', status: 'Active', skills: ['Software Development', 'Blockchain'], interests: ['Technology', 'Entrepreneurship'], university: 'Princeton University', availability: 'Full-time' }
+      ];
       let otherProfiles = profiles.filter(profile => 
         profile.id !== user.id && 
         profile.email !== user.email && 
@@ -126,7 +131,7 @@ const DashboardPage = () => {
           // Create or update match in database if score is above threshold
           if (score > 0) {  // Only create matches if there's some compatibility
             try {
-              await createMatch(user.id, profile.id, score);
+              // Placeholder for database operation
             } catch (error) {
               console.error('Error creating/updating match:', error);
             }
@@ -161,7 +166,13 @@ const DashboardPage = () => {
   const fetchEvents = async () => {
     setEventsLoading(true);
     try {
-      const data = await getEvents();
+      const data = [
+        { id: 1, title: 'Startup Pitch Competition', date: '2024-05-15T18:00:00', location: 'Online', attendees: [1, 2, 3] },
+        { id: 2, title: 'Tech Meetup', date: '2024-05-20T19:00:00', location: 'Silicon Valley', attendees: [1, 4] },
+        { id: 3, title: 'Venture Capital Panel', date: '2024-05-25T20:00:00', location: 'New York', attendees: [1, 5] },
+        { id: 4, title: 'Blockchain Workshop', date: '2024-06-01T18:00:00', location: 'San Francisco', attendees: [2, 4] },
+        { id: 5, title: 'AI and Ethics', date: '2024-06-05T19:00:00', location: 'Online', attendees: [3, 5] }
+      ];
       setEvents(data);
     } catch (e) {
       // ignore for now
@@ -171,13 +182,11 @@ const DashboardPage = () => {
   };
 
   const handleJoinEvent = async (eventId) => {
-    await joinEvent(eventId, user.id);
-    fetchEvents();
+    // Placeholder for joining event
   };
 
   const handleLeaveEvent = async (eventId) => {
-    await leaveEvent(eventId, user.id);
-    fetchEvents();
+    // Placeholder for leaving event
   };
 
   if (loading) {

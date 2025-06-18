@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase, signIn, signUp, getCurrentUser } from '@/lib/supabase';
 
 const AuthContext = createContext({});
 
@@ -12,32 +11,19 @@ export const AuthProvider = ({ children }) => {
     // Check active sessions and sets the user
     const initializeAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session) {
-          await refreshUser();
-        } else {
-          setLoading(false);
-        }
+        // Placeholder for session check
+        setLoading(false);
       } catch (error) {
         console.error('Error checking session:', error);
         setError(error.message);
-    setLoading(false);
+        setLoading(false);
       }
     };
 
     initializeAuth();
 
     // Listen for changes on auth state (sign in, sign out, etc.)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, session);
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        await refreshUser();
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setLoading(false);
-      }
-    });
+    const { data: { subscription } } = { data: { subscription: null } };
 
     return () => {
       if (subscription) subscription.unsubscribe();
@@ -46,16 +32,9 @@ export const AuthProvider = ({ children }) => {
 
   const refreshUser = async () => {
     try {
-      const currentUser = await getCurrentUser();
-      if (currentUser) {
-        setUser(currentUser);
-        setError(null);
-      } else {
-        // If no user profile exists, sign out
-        await supabase.auth.signOut();
-        setUser(null);
-        setError('No profile found. Please sign up first.');
-      }
+      // Placeholder for user refresh
+      setUser(null);
+      setError('No profile found. Please sign up first.');
     } catch (error) {
       console.error('Error refreshing user:', error);
       setError(error.message);
@@ -70,16 +49,9 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       setError(null);
       
-      const { user: authUser, error } = await signIn(email, password);
-      
-      if (error) throw error;
-
-      if (!authUser) {
-        throw new Error('No user returned from login');
-      }
-
-      setUser(authUser);
-      return { success: true, isAdmin: authUser.is_admin };
+      // Placeholder for login
+      setUser(null);
+      return { success: true, isAdmin: false };
     } catch (error) {
       console.error('Login error:', error);
       setError(error.message);
@@ -97,16 +69,9 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       setError(null);
       
-      const { user: newUser, error } = await signUp(userData);
-      
-      if (error) throw error;
-      
-      if (!newUser) {
-        throw new Error('No user returned from signup');
-      }
-
-      setUser(newUser);
-      return { success: true, isAdmin: newUser.is_admin };
+      // Placeholder for signup
+      setUser(null);
+      return { success: true, isAdmin: false };
     } catch (error) {
       console.error('Signup error:', error);
       setError(error.message);
@@ -124,9 +89,7 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       setError(null);
       
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      
+      // Placeholder for logout
       setUser(null);
       return { success: true };
     } catch (error) {

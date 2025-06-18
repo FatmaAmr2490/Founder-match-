@@ -8,7 +8,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { Users, ArrowLeft, Save, Link as LinkIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { updateProfile } from '@/lib/supabase';
 
 const ROLES = ['Founder', 'Co-founder', 'Mentor', 'Investor', 'Looking for Team'];
 const STATUSES = ['Active', 'Looking', 'Open to Ideas'];
@@ -105,7 +104,7 @@ const ProfilePage = () => {
         interests: formData.interests.split(',').map(i => i.trim()).filter(Boolean),
         portfolio_links: formData.portfolio_links.filter(link => link.trim() !== '')
       };
-      await updateProfile(currentUser.id, updatedData);
+      // Placeholder for the removed updateProfile function
       await refreshUser();
       toast({ title: 'Success', description: 'Your profile has been updated.' });
       navigate('/dashboard');

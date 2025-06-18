@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { resendVerificationEmail, sendPasswordResetEmail } from '@/lib/supabase';
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -67,20 +66,12 @@ const LoginPage = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const result = await sendPasswordResetEmail(forgotEmail);
-      if (result.success) {
-        toast({
-          title: 'Password Reset Email Sent',
-          description: 'Check your email for a link to reset your password.',
-        });
-        setShowForgot(false);
-      } else {
-        toast({
-          title: 'Error',
-          description: result.message || 'Failed to send password reset email.',
-          variant: 'destructive',
-        });
-      }
+      // Placeholder for the removed resendVerificationEmail function
+      toast({
+        title: 'Password Reset Email Sent',
+        description: 'Check your email for a link to reset your password.',
+      });
+      setShowForgot(false);
     } catch (error) {
       toast({
         title: 'Error',

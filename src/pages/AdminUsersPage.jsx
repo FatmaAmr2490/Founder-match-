@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { Users, Eye, Trash2, ArrowLeft, UserPlus, Search, LogOut } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getProfiles } from '@/lib/supabase';
 
 const AdminUsersPage = () => {
   const navigate = useNavigate();
@@ -23,9 +22,9 @@ const AdminUsersPage = () => {
       console.log('Fetching users...');
       
       // Get users from Supabase
-      const profiles = await getProfiles();
-      console.log('Fetched profiles:', profiles);
-      setUsers(profiles);
+      // const profiles = await getProfiles();
+      // console.log('Fetched profiles:', profiles);
+      setUsers([]);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({

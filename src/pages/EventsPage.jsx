@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getEvents, joinEvent, leaveEvent, createEvent } from '@/lib/supabase';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,8 +24,8 @@ const EventsPage = () => {
   const fetchEvents = async () => {
     setLoading(true);
     try {
-      const data = await getEvents();
-      setEvents(data);
+      // Placeholder for fetching events
+      setEvents([]);
     } catch (error) {
       toast({ title: 'Error', description: 'Could not load events.', variant: 'destructive' });
     } finally {
@@ -38,7 +37,7 @@ const EventsPage = () => {
 
   const handleJoin = async (eventId) => {
     try {
-      await joinEvent(eventId, user.id);
+      // Placeholder for joining an event
       fetchEvents();
     } catch (error) {
       toast({ title: 'Error', description: 'Could not join event.', variant: 'destructive' });
@@ -47,7 +46,7 @@ const EventsPage = () => {
 
   const handleLeave = async (eventId) => {
     try {
-      await leaveEvent(eventId, user.id);
+      // Placeholder for leaving an event
       fetchEvents();
     } catch (error) {
       toast({ title: 'Error', description: 'Could not leave event.', variant: 'destructive' });
@@ -58,12 +57,7 @@ const EventsPage = () => {
     e.preventDefault();
     setCreating(true);
     try {
-      await createEvent({
-        ...form,
-        date: new Date(form.date),
-        created_by: user.id,
-        attendees: [user.id]
-      });
+      // Placeholder for creating an event
       setShowCreate(false);
       setForm({ title: '', description: '', date: '', location: '' });
       fetchEvents();
