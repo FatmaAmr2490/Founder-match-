@@ -69,11 +69,6 @@ export const signIn = async (email, password) => {
 
     if (authError) throw authError;
 
-    // Enforce email verification
-    if (!authData.user.email_confirmed_at) {
-      throw new Error('Please verify your email address before logging in.');
-    }
-
     // Get profile data
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
@@ -289,21 +284,6 @@ export const subscribeToMatches = (userId, callback) => {
       callback
     )
     .subscribe();
-};
-
-// Resend email verification
-export const resendVerificationEmail = async (email) => {
-  try {
-    const { data, error } = await supabase.auth.resend({
-      type: 'signup',
-      email,
-    });
-    if (error) throw error;
-    return { success: true };
-  } catch (error) {
-    console.error('Resend verification error:', error);
-    return { success: false, message: error.message };
-  }
 };
 
 // Send password reset email

@@ -17,7 +17,6 @@ const LoginPage = () => {
   const { login } = useAuth();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [showResend, setShowResend] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [formData, setFormData] = useState({
@@ -47,11 +46,10 @@ const LoginPage = () => {
       }, 1500);
     } else {
       toast({
-        title: result.message && result.message.includes('verify your email') ? 'Email Not Verified' : 'Login Failed',
+        title: "Login Failed",
         description: result.message || "Invalid credentials. Please try again.",
         variant: "destructive"
       });
-      setShowResend(result.message && result.message.includes('verify your email'));
     }
     } catch (error) {
       console.error('Login error:', error);
@@ -59,33 +57,6 @@ const LoginPage = () => {
         title: "Error",
         description: error.message || "An unexpected error occurred. Please try again.",
         variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResend = async () => {
-    setLoading(true);
-    try {
-      const result = await resendVerificationEmail(formData.email);
-      if (result.success) {
-        toast({
-          title: 'Verification Email Sent',
-          description: 'A new verification link has been sent to your email address.',
-        });
-      } else {
-        toast({
-          title: 'Error',
-          description: result.message || 'Failed to resend verification email.',
-          variant: 'destructive',
-        });
-      }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to resend verification email.',
-        variant: 'destructive',
       });
     } finally {
       setLoading(false);
@@ -215,19 +186,6 @@ const LoginPage = () => {
                 </Link>
               </p>
               </form>
-              {showResend && (
-                <div className="mt-4 text-center">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full"
-                    onClick={handleResend}
-                    disabled={loading}
-                  >
-                    Resend Verification Email
-                  </Button>
-                </div>
-              )}
               <div className="mt-4 text-center">
                 <button
                   type="button"

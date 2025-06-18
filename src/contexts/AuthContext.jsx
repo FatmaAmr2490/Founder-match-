@@ -83,13 +83,6 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Login error:', error);
       setError(error.message);
-      // Custom message for unverified email
-      if (error.message && error.message.includes('verify your email')) {
-        return {
-          success: false,
-          message: 'Please verify your email address before logging in. Check your inbox for a verification link.'
-        };
-      }
       return { 
         success: false, 
         message: error.message || 'Failed to log in. Please check your credentials and try again.' 
