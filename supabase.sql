@@ -12,6 +12,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at DESC);
 DROP POLICY IF EXISTS "Profiles are viewable by authenticated users" ON profiles;
 DROP POLICY IF EXISTS "Users can insert their own profile" ON profiles;
 DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
+DROP POLICY IF EXISTS "Users can delete own profile" ON profiles;
 
 CREATE POLICY "Profiles are viewable by authenticated users"
 ON profiles FOR SELECT
@@ -25,9 +26,11 @@ WITH CHECK (auth.uid() = auth_id);
 
 CREATE POLICY "Users can update own profile"
 ON profiles FOR UPDATE
-TO authenticated
-USING (auth.uid() = auth_id)
-WITH CHECK (auth.uid() = auth_id);
+USING (auth.uid() = auth_id);
+
+CREATE POLICY "Users can delete own profile"
+ON profiles FOR DELETE
+USING (auth.uid() = auth_id);
 
 -- Update or create RLS policies for messages
 DROP POLICY IF EXISTS "Users can view their own messages" ON messages;
@@ -91,4 +94,20 @@ USING (
   auth.uid() IN (
     SELECT auth_id FROM profiles WHERE id = user1_id OR id = user2_id
   )
+);
+
+CREATE TABLE profiles (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    auth_id UUID UNIQUE,
+    email TEXT UNIQUE NOT NULL,
+    name TEXT,
+    -- ... other fields ...
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 ); 
+
+CREATE POLICY "Users can insert own profile"
+    ON profiles FOR INSERT
+    WITH CHECK (auth.uid() = auth_id); 
+
+SELECT * FROM pg_policies WHERE tablename = 'profiles'; 

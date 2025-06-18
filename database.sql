@@ -1,24 +1,17 @@
--- Temporarily disable triggers and constraints
-SET session_replication_role = 'replica';
+-- TEMPORARY DEBUG POLICY: Remove after debugging RLS issues
+CREATE POLICY "Debug allow all" ON profiles FOR ALL USING (true);
 
--- Drop existing triggers, functions, and tables if any
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-DROP FUNCTION IF EXISTS handle_new_user CASCADE;
-DROP FUNCTION IF EXISTS handle_updated_at CASCADE;
-DROP TABLE IF EXISTS messages CASCADE;
-DROP TABLE IF EXISTS matches CASCADE;
-DROP TABLE IF EXISTS profiles CASCADE;
-DROP TABLE IF EXISTS events CASCADE;
-
--- Enable necessary extension
+-- ============================
+-- EXTENSIONS
+-- ============================
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ============================
--- CREATE TABLES
+-- TABLES
 -- ============================
 
 -- Profiles table
-CREATE TABLE profiles (
+CREATE TABLE IF NOT EXISTS profiles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     auth_id UUID UNIQUE,
     email TEXT UNIQUE NOT NULL,
@@ -40,7 +33,7 @@ CREATE TABLE profiles (
 );
 
 -- Matches table
-CREATE TABLE matches (
+CREATE TABLE IF NOT EXISTS matches (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user1_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
     user2_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
@@ -48,6 +41,19 @@ CREATE TABLE matches (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(user1_id, user2_id)
+);
+
+-- Messages table
+CREATE TABLE IF NOT EXISTS messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    sender_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+    receiver_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    type TEXT DEFAULT 'text',
+    read BOOLEAN DEFAULT FALSE,
+    read_at TIMESTAMPTZ
 );
 
 -- Events table
@@ -63,36 +69,20 @@ CREATE TABLE IF NOT EXISTS events (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Messages table
-CREATE TABLE messages (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    sender_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-    receiver_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-    content TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    type TEXT DEFAULT 'text',
-    read BOOLEAN DEFAULT FALSE,
-    read_at TIMESTAMPTZ
-);
-
 -- ============================
 -- INDEXES
 -- ============================
-
--- Remove redundant indexes on auth_id and email (already unique)
-CREATE INDEX idx_matches_users ON matches(user1_id, user2_id);
 CREATE INDEX IF NOT EXISTS idx_profiles_skills ON profiles USING GIN(skills);
 CREATE INDEX IF NOT EXISTS idx_profiles_interests ON profiles USING GIN(interests);
+CREATE INDEX IF NOT EXISTS idx_matches_users ON matches(user1_id, user2_id);
+CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_id);
+CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_events_date ON events(date DESC);
-CREATE INDEX idx_messages_sender ON messages(sender_id);
-CREATE INDEX idx_messages_receiver ON messages(receiver_id);
-CREATE INDEX idx_messages_created_at ON messages(created_at DESC);
 
 -- ============================
 -- TRIGGERS: updated_at handler
 -- ============================
-
 CREATE OR REPLACE FUNCTION handle_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -101,16 +91,19 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS set_profiles_updated_at ON profiles;
 CREATE TRIGGER set_profiles_updated_at
     BEFORE UPDATE ON profiles
     FOR EACH ROW
     EXECUTE FUNCTION handle_updated_at();
 
+DROP TRIGGER IF EXISTS set_matches_updated_at ON matches;
 CREATE TRIGGER set_matches_updated_at
     BEFORE UPDATE ON matches
     FOR EACH ROW
     EXECUTE FUNCTION handle_updated_at();
 
+DROP TRIGGER IF EXISTS set_messages_updated_at ON messages;
 CREATE TRIGGER set_messages_updated_at
     BEFORE UPDATE ON messages
     FOR EACH ROW
@@ -119,7 +112,6 @@ CREATE TRIGGER set_messages_updated_at
 -- ============================
 -- RLS POLICIES
 -- ============================
-
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE matches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
@@ -207,7 +199,6 @@ CREATE POLICY "Users can delete their own messages"
 -- ============================
 -- Handle new user creation
 -- ============================
-
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -226,9 +217,7 @@ CREATE TRIGGER on_auth_user_created
 -- ============================
 -- Permissions
 -- ============================
-
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
--- Only grant SELECT to anon, not ALL
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
@@ -237,7 +226,6 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
 -- ============================
 -- Final cleanup
 -- ============================
-
 SET session_replication_role = 'origin';
 
 -- Remove any leftover orphaned records
@@ -245,11 +233,9 @@ DELETE FROM matches WHERE
     user1_id NOT IN (SELECT id FROM profiles) OR 
     user2_id NOT IN (SELECT id FROM profiles);
 
--- Remove any leftover orphaned events
 DELETE FROM events WHERE 
     created_by IS NOT NULL AND created_by NOT IN (SELECT id FROM profiles);
 
--- Remove any leftover orphaned messages
 DELETE FROM messages
 WHERE sender_id NOT IN (SELECT id FROM profiles)
    OR receiver_id NOT IN (SELECT id FROM profiles);
