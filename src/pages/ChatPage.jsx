@@ -10,8 +10,6 @@ import { motion } from 'framer-motion';
 import HelpCenter from '@/components/ui/help-center';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { Picker } from 'emoji-mart';
-import 'emoji-mart/css/emoji-mart.css';
 dayjs.extend(relativeTime);
 
 const ChatPage = () => {
@@ -27,7 +25,6 @@ const ChatPage = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [receiverProfile, setReceiverProfile] = useState(null);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [quickReplies] = useState(['👍', 'Thanks!', '😊', "Let's connect!"]);
   const [uploading, setUploading] = useState(false);
@@ -345,48 +342,26 @@ const ChatPage = () => {
 
       {/* Message Input with Emoji Picker and Upload */}
       <form onSubmit={handleSend} className="p-4 bg-white flex space-x-2 items-center border-t relative">
-        <Button
-          type="button"
-          variant="ghost"
-          className="p-2"
-          onClick={() => setShowEmojiPicker((v) => !v)}
-        >
-          <Smile className="h-6 w-6 text-gray-400" />
-        </Button>
-        {showEmojiPicker && (
-          <div className="absolute bottom-16 left-4 bg-white border rounded-lg shadow-lg p-2 z-50">
-            <Picker
-              onEmojiSelect={emoji => setNewMessage(newMessage + emoji.native)}
-              theme="light"
-              perLine={8}
-              emojiSize={24}
-              showPreview={false}
-              showSkinTones={false}
-            />
-          </div>
-        )}
         {/* Upload button */}
         <label className="p-2 cursor-pointer">
           <input type="file" accept="image/*,.pdf,.doc,.docx,.txt,.zip,.rar" className="hidden" onChange={handleFileChange} disabled={uploading} />
           <Paperclip className={`h-6 w-6 text-gray-400 ${uploading ? 'animate-pulse' : ''}`} />
         </label>
         <Input
-                    value={newMessage}
+          value={newMessage}
           onChange={handleInputChange}
-          placeholder={uploading ? 'Uploading file...' : 'Type your message...'}
+          placeholder="Type your message..."
           className="flex-1"
           disabled={sending || uploading}
-                  />
-                  <Button 
-          type="submit"
-          disabled={!newMessage.trim() || sending || uploading}
-                    className="gradient-bg text-white"
-        >
-          {sending ? (
-            <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
-          ) : (
-            <Send className="h-5 w-5" />
-          )}
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              handleSend(e);
+            }
+          }}
+        />
+        <Button type="submit" disabled={sending || uploading || !newMessage.trim()} className="p-2">
+          <Send className="h-6 w-6" />
         </Button>
       </form>
     </div>
