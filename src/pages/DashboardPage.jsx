@@ -4,9 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
-import { Users, MessageCircle, User, LogOut } from 'lucide-react';
+import { Users, MessageCircle, User, LogOut, Link as LinkIcon, Award, Briefcase, School, Star, BadgeCheck, Calendar } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getProfiles, createMatch } from '@/lib/supabase';
+import { getProfiles, createMatch, getEvents, joinEvent, leaveEvent } from '@/lib/supabase';
 
 const DashboardPage = () => {
   const navigate = useNavigate();
@@ -14,6 +14,16 @@ const DashboardPage = () => {
   const { user, logout } = useAuth();
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({
+    major: '',
+    department: '',
+    role: '',
+    status: '',
+    skill: '',
+    interest: ''
+  });
+  const [events, setEvents] = useState([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
 
   useEffect(() => {
     if (!user) {
@@ -22,6 +32,7 @@ const DashboardPage = () => {
     }
 
     fetchMatches();
+    fetchEvents();
   }, [user, navigate]);
 
   const calculateMatchScore = (user1, user2) => {
@@ -82,17 +93,30 @@ const DashboardPage = () => {
     return Math.min(Math.round(score), 100);
   };
 
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    setFilters((prev) => ({ ...prev, [name]: value }));
+  };
+
   const fetchMatches = async () => {
     try {
       setLoading(true);
       
       // Get all profiles except current user
       const profiles = await getProfiles();
-      const otherProfiles = profiles.filter(profile => 
+      let otherProfiles = profiles.filter(profile => 
         profile.id !== user.id && 
         profile.email !== user.email && 
         !profile.is_admin // Exclude admin users from matches
       );
+
+      // Apply filters
+      if (filters.major) otherProfiles = otherProfiles.filter(p => (p.major || '').toLowerCase().includes(filters.major.toLowerCase()));
+      if (filters.department) otherProfiles = otherProfiles.filter(p => (p.department || '').toLowerCase().includes(filters.department.toLowerCase()));
+      if (filters.role) otherProfiles = otherProfiles.filter(p => (p.role || '').toLowerCase() === filters.role.toLowerCase());
+      if (filters.status) otherProfiles = otherProfiles.filter(p => (p.status || '').toLowerCase() === filters.status.toLowerCase());
+      if (filters.skill) otherProfiles = otherProfiles.filter(p => (p.skills || []).some(s => s.toLowerCase().includes(filters.skill.toLowerCase())));
+      if (filters.interest) otherProfiles = otherProfiles.filter(p => (p.interests || []).some(i => i.toLowerCase().includes(filters.interest.toLowerCase())));
 
       // Calculate match scores
       const matchesWithScores = await Promise.all(
@@ -134,6 +158,28 @@ const DashboardPage = () => {
     }
   };
 
+  const fetchEvents = async () => {
+    setEventsLoading(true);
+    try {
+      const data = await getEvents();
+      setEvents(data);
+    } catch (e) {
+      // ignore for now
+    } finally {
+      setEventsLoading(false);
+    }
+  };
+
+  const handleJoinEvent = async (eventId) => {
+    await joinEvent(eventId, user.id);
+    fetchEvents();
+  };
+
+  const handleLeaveEvent = async (eventId) => {
+    await leaveEvent(eventId, user.id);
+    fetchEvents();
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -167,6 +213,14 @@ const DashboardPage = () => {
             Messages
           </Button>
           <Button 
+            variant="ghost"
+            onClick={() => navigate('/events')}
+            className="text-gray-600 hover:text-red-600"
+          >
+            <Calendar className="h-5 w-5 mr-2" />
+            Events
+          </Button>
+          <Button 
             variant="outline"
             onClick={logout}
           >
@@ -193,6 +247,27 @@ const DashboardPage = () => {
                   </div>
                   <h2 className="text-2xl font-bold mb-1">{user.name}</h2>
                   <p className="text-gray-500">{user.email}</p>
+                  {/* Role and Status Badges */}
+                  <div className="flex justify-center gap-2 mt-2">
+                    {user.role && <span className="inline-flex items-center px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-semibold"><Award className="h-3 w-3 mr-1" />{user.role}</span>}
+                    {user.status && <span className="inline-flex items-center px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold"><BadgeCheck className="h-3 w-3 mr-1" />{user.status}</span>}
+                  </div>
+                  {/* Major and Department */}
+                  <div className="flex flex-col items-center mt-2">
+                    {user.major && <span className="text-sm text-gray-600"><Briefcase className="h-4 w-4 inline mr-1" />{user.major}</span>}
+                    {user.department && <span className="text-sm text-gray-600"><School className="h-4 w-4 inline mr-1" />{user.department}</span>}
+                  </div>
+                  {/* Portfolio Links */}
+                  {user.portfolio_links && user.portfolio_links.length > 0 && (
+                    <div className="mt-3">
+                      <h4 className="text-xs font-semibold text-gray-500 mb-1">Portfolio</h4>
+                      <div className="flex flex-wrap gap-2 justify-center">
+                        {user.portfolio_links.map((link, idx) => (
+                          <a key={idx} href={link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-2 py-1 bg-blue-50 text-blue-600 rounded-full text-xs hover:underline"><LinkIcon className="h-3 w-3 mr-1" />{link.replace(/^https?:\/\//, '').slice(0, 20)}...</a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-4">
@@ -256,6 +331,27 @@ const DashboardPage = () => {
 
           {/* Matches Section */}
           <div className="md:col-span-8">
+            <div className="mb-6 p-4 bg-white rounded-lg shadow flex flex-wrap gap-4 items-center">
+              <input type="text" name="major" value={filters.major} onChange={handleFilterChange} placeholder="Filter by major" className="border rounded px-2 py-1 text-sm" />
+              <input type="text" name="department" value={filters.department} onChange={handleFilterChange} placeholder="Department" className="border rounded px-2 py-1 text-sm" />
+              <select name="role" value={filters.role} onChange={handleFilterChange} className="border rounded px-2 py-1 text-sm">
+                <option value="">Role</option>
+                <option value="Founder">Founder</option>
+                <option value="Co-founder">Co-founder</option>
+                <option value="Mentor">Mentor</option>
+                <option value="Investor">Investor</option>
+                <option value="Looking for Team">Looking for Team</option>
+              </select>
+              <select name="status" value={filters.status} onChange={handleFilterChange} className="border rounded px-2 py-1 text-sm">
+                <option value="">Status</option>
+                <option value="Active">Active</option>
+                <option value="Looking">Looking</option>
+                <option value="Open to Ideas">Open to Ideas</option>
+              </select>
+              <input type="text" name="skill" value={filters.skill} onChange={handleFilterChange} placeholder="Skill" className="border rounded px-2 py-1 text-sm" />
+              <input type="text" name="interest" value={filters.interest} onChange={handleFilterChange} placeholder="Interest" className="border rounded px-2 py-1 text-sm" />
+              <button onClick={() => setFilters({ major: '', department: '', role: '', status: '', skill: '', interest: '' })} className="ml-2 text-xs text-red-500 underline">Clear</button>
+            </div>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {matches.length > 0 ? (
                 matches.map((match) => (
@@ -272,12 +368,30 @@ const DashboardPage = () => {
                             <User className="w-8 h-8 text-red-600" />
                           </div>
                           <h3 className="font-semibold text-lg mb-1">{match.name}</h3>
-                        {match.university && (
+                          {match.university && (
                             <p className="text-sm text-gray-500 mb-2">{match.university}</p>
                           )}
-                          <div className="inline-flex items-center bg-red-100 text-red-600 rounded-full px-3 py-1 text-sm">
-                            {match.matchScore}% Match
+                          {/* Role and Status Badges */}
+                          <div className="flex justify-center gap-2 mb-2">
+                            {match.role && <span className="inline-flex items-center px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-semibold"><Award className="h-3 w-3 mr-1" />{match.role}</span>}
+                            {match.status && <span className="inline-flex items-center px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold"><BadgeCheck className="h-3 w-3 mr-1" />{match.status}</span>}
                           </div>
+                          {/* Major and Department */}
+                          <div className="flex flex-col items-center mb-2">
+                            {match.major && <span className="text-xs text-gray-600"><Briefcase className="h-3 w-3 inline mr-1" />{match.major}</span>}
+                            {match.department && <span className="text-xs text-gray-600"><School className="h-3 w-3 inline mr-1" />{match.department}</span>}
+                          </div>
+                          <div className="inline-flex items-center bg-red-100 text-red-600 rounded-full px-3 py-1 text-sm">{match.matchScore}% Match</div>
+                          {/* Portfolio Links */}
+                          {match.portfolio_links && match.portfolio_links.length > 0 && (
+                            <div className="mt-2">
+                              <div className="flex flex-wrap gap-1 justify-center">
+                                {match.portfolio_links.map((link, idx) => (
+                                  <a key={idx} href={link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-2 py-1 bg-blue-50 text-blue-600 rounded-full text-xs hover:underline"><LinkIcon className="h-3 w-3 mr-1" />{link.replace(/^https?:\/\//, '').slice(0, 16)}...</a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         {/* Skills */}
@@ -348,6 +462,31 @@ const DashboardPage = () => {
           </div>
         </motion.div>
       </div>
+
+      {eventsLoading ? null : events && events.length > 0 && (
+        <Card className="mb-6">
+          <CardContent className="p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-bold mb-2">Upcoming Events</h3>
+              {events.slice(0, 2).map(event => {
+                const joined = event.attendees?.includes(user.id);
+                return (
+                  <div key={event.id} className="mb-2">
+                    <span className="font-semibold">{event.title}</span> &mdash; {new Date(event.date).toLocaleString()}<br />
+                    <span className="text-xs text-gray-500">{event.location}</span>
+                    {joined ? (
+                      <Button size="sm" variant="outline" className="ml-2" onClick={() => handleLeaveEvent(event.id)}>Leave</Button>
+                    ) : (
+                      <Button size="sm" variant="default" className="ml-2" onClick={() => handleJoinEvent(event.id)}>Join</Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <Button variant="link" onClick={() => navigate('/events')}>See all events</Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

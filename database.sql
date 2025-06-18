@@ -8,6 +8,7 @@ DROP FUNCTION IF EXISTS handle_updated_at CASCADE;
 DROP TABLE IF EXISTS messages CASCADE;
 DROP TABLE IF EXISTS matches CASCADE;
 DROP TABLE IF EXISTS profiles CASCADE;
+DROP TABLE IF EXISTS events CASCADE;
 
 -- Enable necessary extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -29,7 +30,13 @@ CREATE TABLE profiles (
     bio TEXT,
     is_admin BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    avatar_url TEXT,
+    major TEXT,
+    department TEXT,
+    role TEXT DEFAULT 'founder',
+    status TEXT DEFAULT 'active',
+    portfolio_links TEXT[] DEFAULT ARRAY[]::TEXT[]
 );
 
 -- Matches table
@@ -50,6 +57,22 @@ CREATE TABLE messages (
     receiver_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
     content TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    type TEXT DEFAULT 'text',
+    read BOOLEAN DEFAULT FALSE,
+    read_at TIMESTAMPTZ
+);
+
+-- Events table
+CREATE TABLE IF NOT EXISTS events (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    title TEXT NOT NULL,
+    description TEXT,
+    date TIMESTAMPTZ NOT NULL,
+    location TEXT,
+    created_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
+    attendees UUID[] DEFAULT ARRAY[]::UUID[],
+    created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -63,6 +86,9 @@ CREATE INDEX idx_matches_users ON matches(user1_id, user2_id);
 CREATE INDEX idx_messages_sender ON messages(sender_id);
 CREATE INDEX idx_messages_receiver ON messages(receiver_id);
 CREATE INDEX idx_messages_created_at ON messages(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_profiles_skills ON profiles USING GIN(skills);
+CREATE INDEX IF NOT EXISTS idx_profiles_interests ON profiles USING GIN(interests);
+CREATE INDEX IF NOT EXISTS idx_events_date ON events(date DESC);
 
 -- ============================
 -- TRIGGERS: updated_at handler
@@ -189,7 +215,6 @@ BEGIN
     INSERT INTO public.profiles (auth_id, email, is_admin)
     VALUES (NEW.id, NEW.email, NEW.email = 'admin@foundermatch.com')
     ON CONFLICT (auth_id) DO NOTHING;
-    
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -219,6 +244,12 @@ DELETE FROM matches WHERE
     user1_id NOT IN (SELECT id FROM profiles) OR 
     user2_id NOT IN (SELECT id FROM profiles);
 
-DELETE FROM messages WHERE 
-    sender_id NOT IN (SELECT id FROM profiles) OR 
-    receiver_id NOT IN (SELECT id FROM profiles);
+DELETE FROM messages
+WHERE sender_id NOT IN (SELECT id FROM profiles)
+   OR receiver_id NOT IN (SELECT id FROM profiles);
+
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS major TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS department TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'founder';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS portfolio_links TEXT[] DEFAULT ARRAY[]::TEXT[];

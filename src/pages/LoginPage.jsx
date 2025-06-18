@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { resendVerificationEmail, sendPasswordResetEmail } from '@/lib/supabase';
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -16,6 +17,9 @@ const LoginPage = () => {
   const { login } = useAuth();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showResend, setShowResend] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -28,32 +32,89 @@ const LoginPage = () => {
     try {
       const result = await login(formData.email, formData.password);
 
-      if (result.success) {
-        toast({
+    if (result.success) {
+      toast({
           title: "Welcome back!",
           description: `Redirecting you to the ${result.isAdmin ? 'admin panel' : 'dashboard'}...`,
-        });
+      });
         
         // Get the redirect path from location state or default to dashboard/admin
         const destination = location.state?.from?.pathname || (result.isAdmin ? '/admin' : '/dashboard');
         
         // Add a small delay before navigation
-        setTimeout(() => {
+      setTimeout(() => {
           navigate(destination, { replace: true });
-        }, 1500);
-      } else {
-        toast({
-          title: "Login Failed",
-          description: result.message || "Invalid credentials. Please try again.",
-          variant: "destructive"
-        });
-      }
+      }, 1500);
+    } else {
+      toast({
+        title: result.message && result.message.includes('verify your email') ? 'Email Not Verified' : 'Login Failed',
+        description: result.message || "Invalid credentials. Please try again.",
+        variant: "destructive"
+      });
+      setShowResend(result.message && result.message.includes('verify your email'));
+    }
     } catch (error) {
       console.error('Login error:', error);
       toast({
         title: "Error",
         description: error.message || "An unexpected error occurred. Please try again.",
         variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setLoading(true);
+    try {
+      const result = await resendVerificationEmail(formData.email);
+      if (result.success) {
+        toast({
+          title: 'Verification Email Sent',
+          description: 'A new verification link has been sent to your email address.',
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: result.message || 'Failed to resend verification email.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to resend verification email.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const result = await sendPasswordResetEmail(forgotEmail);
+      if (result.success) {
+        toast({
+          title: 'Password Reset Email Sent',
+          description: 'Check your email for a link to reset your password.',
+        });
+        setShowForgot(false);
+      } else {
+        toast({
+          title: 'Error',
+          description: result.message || 'Failed to send password reset email.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to send password reset email.',
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
@@ -84,53 +145,53 @@ const LoginPage = () => {
                 <div className="space-y-4">
                   {/* Email Field */}
                   <div>
-                    <Label htmlFor="email" className="text-sm font-semibold">
-                      Email Address
-                    </Label>
-                    <Input
-                      id="email"
-                      type="email"
+                  <Label htmlFor="email" className="text-sm font-semibold">
+                    Email Address
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
                       value={formData.email}
                       onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                       placeholder="you@example.com"
                       className="h-12"
-                      required
+                    required
                       disabled={loading}
-                    />
-                  </div>
-
+                  />
+                </div>
+                
                   {/* Password Field */}
                   <div className="relative">
-                    <Label htmlFor="password" className="text-sm font-semibold">
-                      Password
-                    </Label>
+                  <Label htmlFor="password" className="text-sm font-semibold">
+                    Password
+                  </Label>
                     <div className="relative">
-                      <Input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
                         value={formData.password}
                         onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
-                        placeholder="Enter your password"
+                    placeholder="Enter your password"
                         className="h-12 pr-10"
-                        required
+                    required
                         disabled={loading}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
+                  />
+                   <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
                         className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7"
-                        onClick={() => setShowPassword(!showPassword)}
+                    onClick={() => setShowPassword(!showPassword)}
                         disabled={loading}
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
                     </div>
                   </div>
                 </div>
 
-                <Button
-                  type="submit"
+                  <Button 
+                    type="submit" 
                   className="w-full h-12 gradient-bg text-white font-semibold"
                   disabled={loading}
                 >
@@ -141,19 +202,61 @@ const LoginPage = () => {
                     </div>
                   ) : (
                     <>
-                      <LogIn className="mr-2 h-5 w-5" />
+                    <LogIn className="mr-2 h-5 w-5" />
                       Sign In
                     </>
                   )}
-                </Button>
+                  </Button>
 
-                <p className="text-center text-sm text-gray-600">
-                  Don't have an account?{' '}
-                  <Link to="/signup" className="font-semibold text-red-600 hover:underline">
+              <p className="text-center text-sm text-gray-600">
+                Don't have an account?{' '}
+                <Link to="/signup" className="font-semibold text-red-600 hover:underline">
                     Create Account
-                  </Link>
-                </p>
+                </Link>
+              </p>
               </form>
+              {showResend && (
+                <div className="mt-4 text-center">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={handleResend}
+                    disabled={loading}
+                  >
+                    Resend Verification Email
+                  </Button>
+                </div>
+              )}
+              <div className="mt-4 text-center">
+                <button
+                  type="button"
+                  className="text-red-600 hover:underline text-sm"
+                  onClick={() => setShowForgot(!showForgot)}
+                  disabled={loading}
+                >
+                  Forgot Password?
+                </button>
+              </div>
+              {showForgot && (
+                <form onSubmit={handleForgotPassword} className="mt-4 space-y-4">
+                  <Input
+                    type="email"
+                    placeholder="Enter your email address"
+                    value={forgotEmail}
+                    onChange={e => setForgotEmail(e.target.value)}
+                    required
+                    disabled={loading}
+                  />
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={loading || !forgotEmail}
+                  >
+                    {loading ? 'Sending...' : 'Send Password Reset Email'}
+                  </Button>
+                </form>
+              )}
             </CardContent>
           </Card>
         </motion.div>

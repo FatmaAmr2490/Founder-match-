@@ -22,7 +22,7 @@ export const AuthProvider = ({ children }) => {
       } catch (error) {
         console.error('Error checking session:', error);
         setError(error.message);
-        setLoading(false);
+    setLoading(false);
       }
     };
 
@@ -73,7 +73,7 @@ export const AuthProvider = ({ children }) => {
       const { user: authUser, error } = await signIn(email, password);
       
       if (error) throw error;
-      
+
       if (!authUser) {
         throw new Error('No user returned from login');
       }
@@ -83,6 +83,13 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Login error:', error);
       setError(error.message);
+      // Custom message for unverified email
+      if (error.message && error.message.includes('verify your email')) {
+        return {
+          success: false,
+          message: 'Please verify your email address before logging in. Check your inbox for a verification link.'
+        };
+      }
       return { 
         success: false, 
         message: error.message || 'Failed to log in. Please check your credentials and try again.' 

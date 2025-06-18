@@ -13,6 +13,7 @@ import ChatPage from '@/pages/ChatPage';
 import ProfilePage from '@/pages/ProfilePage';
 import PrivacyPolicyPage from '@/pages/PrivacyPolicyPage';
 import TermsOfServicePage from '@/pages/TermsOfServicePage';
+import EventsPage from '@/pages/EventsPage';
 import AuthContext, { AuthProvider } from '@/contexts/AuthContext';
 
 // Protected Route - Requires authentication
@@ -140,6 +141,14 @@ function AppContent() {
           element={
             <ProtectedRoute adminOnly={true}>
               <AdminUserProfilePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/events"
+          element={
+            <ProtectedRoute>
+              <EventsPage />
             </ProtectedRoute>
           }
         />

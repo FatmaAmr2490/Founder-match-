@@ -1,12 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase, getMessages, sendMessage } from '@/lib/supabase';
+import { supabase, getMessages, sendMessage, uploadFileToStorage } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
-import { Send, ArrowLeft } from 'lucide-react';
+import { Send, ArrowLeft, Smile, Paperclip } from 'lucide-react';
 import { motion } from 'framer-motion';
+import HelpCenter from '@/components/ui/help-center';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import { Picker } from 'emoji-mart';
+import 'emoji-mart/css/emoji-mart.css';
+dayjs.extend(relativeTime);
+
+const ICEBREAKERS = [
+  'What inspired you to join FounderMatch?',
+  'What startup idea are you most excited about?',
+  'What skills are you looking for in a co-founder?',
+  "What's your favorite project you've worked on?",
+  "What's one thing you wish you knew before starting your journey?"
+];
 
 const ChatPage = () => {
   const { receiverId } = useParams();
@@ -21,6 +35,10 @@ const ChatPage = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [receiverProfile, setReceiverProfile] = useState(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [quickReplies] = useState(['👍', 'Thanks!', '😊', 'Let's connect!']);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (!user || !receiverId) return;
@@ -135,13 +153,33 @@ const ChatPage = () => {
       setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
-      toast({
+    toast({
         title: 'Error',
         description: 'Could not send message. Please try again.',
-        variant: 'destructive',
-      });
+      variant: 'destructive',
+    });
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await uploadFileToStorage(file, user.id);
+      // Send as image or file message
+      let content = url;
+      if (file.type.startsWith('image/')) {
+        content = `[image]${url}`;
+      }
+      await sendMessage(user.id, receiverId, content);
+      toast({ title: 'File sent!' });
+    } catch (error) {
+      toast({ title: 'Upload failed', description: error.message, variant: 'destructive' });
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -153,6 +191,35 @@ const ChatPage = () => {
     scrollToBottom();
   }, [messages]);
 
+  // Helper for grouping messages
+  const groupMessages = (messages) => {
+    const groups = [];
+    let lastSender = null;
+    let currentGroup = null;
+    messages.forEach((msg, idx) => {
+      if (msg.sender_id !== lastSender) {
+        if (currentGroup) groups.push(currentGroup);
+        currentGroup = { sender_id: msg.sender_id, messages: [msg] };
+        lastSender = msg.sender_id;
+      } else {
+        currentGroup.messages.push(msg);
+      }
+      if (idx === messages.length - 1 && currentGroup) {
+        groups.push(currentGroup);
+      }
+    });
+    return groups;
+  };
+
+  // Typing indicator logic (simple demo)
+  let typingTimeout;
+  const handleInputChange = (e) => {
+    setNewMessage(e.target.value);
+    setIsTyping(true);
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => setIsTyping(false), 1500);
+  };
+
   if (!user || !receiverProfile) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -160,13 +227,33 @@ const ChatPage = () => {
       </div>
     );
   }
-
+  
   return (
     <div className="flex flex-col h-screen bg-gray-50">
+      {/* Help Center at the very top */}
+      <div className="sticky top-0 z-40 bg-gray-50">
+        <HelpCenter />
+      </div>
+      {/* Icebreakers */}
+      <div className="bg-white border-b border-gray-100 px-4 py-3 sticky top-16 z-30">
+        <div className="flex flex-wrap gap-2 items-center">
+          <span className="font-semibold text-gray-700 mr-2">Icebreakers:</span>
+          {ICEBREAKERS.map((q, idx) => (
+            <button
+              key={idx}
+              className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs hover:bg-blue-100 transition"
+              onClick={() => setNewMessage(q)}
+              type="button"
+            >
+              {q}
+            </button>
+          ))}
+        </div>
+      </div>
       {/* Header */}
       <div className="bg-white shadow-sm p-4 flex items-center">
-        <Button
-          variant="ghost"
+        <Button 
+          variant="ghost" 
           size="icon"
           className="mr-2"
           onClick={() => window.history.back()}
@@ -198,58 +285,133 @@ const ChatPage = () => {
                 </Button>
               </div>
             )}
-
-            {messages.map((message, index) => (
-              <motion.div
-                key={message.id || index}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                className={`flex ${
-                  message.sender_id === user.id ? 'justify-end' : 'justify-start'
-                }`}
-              >
-                <div
-                  className={`max-w-[70%] rounded-lg p-3 ${
-                    message.sender_id === user.id
-                      ? 'bg-red-500 text-white'
-                      : 'bg-white shadow-md'
-                  }`}
-                >
-                  <p className="text-sm">{message.content}</p>
-                  <span className="text-xs opacity-70 mt-1 block">
-                    {new Date(message.created_at).toLocaleTimeString()}
-                  </span>
+            {/* Grouped messages with avatars */}
+            {groupMessages(messages).map((group, idx) => {
+              const isCurrentUser = group.sender_id === user.id;
+              const senderProfile = isCurrentUser ? user : receiverProfile;
+              const avatarLetter = senderProfile?.name ? senderProfile.name.charAt(0).toUpperCase() : 'U';
+              return (
+                <div key={idx} className={`flex flex-col ${isCurrentUser ? 'items-end' : 'items-start'}`}>
+                  <div className="flex items-center mb-1 gap-2">
+                    {!isCurrentUser && (
+                      <div className="w-8 h-8 rounded-full bg-red-200 flex items-center justify-center text-red-700 font-bold text-lg">
+                        {avatarLetter}
+                      </div>
+                    )}
+                    <span className="font-semibold text-xs text-gray-500">
+                      {isCurrentUser ? 'You' : senderProfile?.name || 'User'}
+                    </span>
+                  </div>
+                  {group.messages.map((message, mIdx) => {
+                    let isImage = false;
+                    let fileUrl = '';
+                    if (message.content.startsWith('[image]')) {
+                      isImage = true;
+                      fileUrl = message.content.replace('[image]', '');
+                    } else if (/^https?:\/\//.test(message.content) && (message.content.match(/\.(jpg|jpeg|png|gif|webp)$/i))) {
+                      isImage = true;
+                      fileUrl = message.content;
+                    } else if (/^https?:\/\//.test(message.content)) {
+                      fileUrl = message.content;
+                    }
+                    return (
+                      <motion.div
+                        key={message.id || mIdx}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className={`max-w-[70%] rounded-lg p-3 mb-1 ${
+                          isCurrentUser
+                            ? 'bg-red-500 text-white self-end'
+                            : 'bg-white shadow-md self-start'
+                        }`}
+                      >
+                        {isImage ? (
+                          <img src={fileUrl} alt="sent file" className="rounded-lg max-w-xs max-h-60 mb-2" />
+                        ) : fileUrl ? (
+                          <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="underline text-blue-600 break-all">Download file</a>
+                        ) : (
+                          <p className="text-sm">{message.content}</p>
+                        )}
+                        <span className="text-xs opacity-70 mt-1 block">
+                          {dayjs(message.created_at).fromNow()}
+                        </span>
+                      </motion.div>
+                    );
+                  })}
                 </div>
-              </motion.div>
-            ))}
+              );
+            })}
+            {isTyping && (
+              <div className="flex items-center gap-2 mt-2 text-gray-400 text-xs">
+                <span className="animate-pulse">{receiverProfile?.name || 'User'} is typing...</span>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </>
         )}
       </div>
 
-      {/* Message Input */}
-      <form onSubmit={handleSend} className="p-4 bg-white shadow-lg">
-        <div className="flex space-x-2">
-          <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type your message..."
-            className="flex-1"
-            disabled={sending}
-          />
+      {/* Quick Replies */}
+      <div className="flex gap-2 px-4 pb-2">
+        {quickReplies.map((reply, i) => (
           <Button
-            type="submit"
-            disabled={!newMessage.trim() || sending}
-            className="gradient-bg text-white"
+            key={i}
+            variant="outline"
+            size="sm"
+            className="rounded-full px-3"
+            onClick={() => setNewMessage(reply)}
           >
-            {sending ? (
-              <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
-            ) : (
-              <Send className="h-5 w-5" />
-            )}
+            {reply}
           </Button>
-        </div>
+        ))}
+      </div>
+
+      {/* Message Input with Emoji Picker and Upload */}
+      <form onSubmit={handleSend} className="p-4 bg-white flex space-x-2 items-center border-t relative">
+        <Button
+          type="button"
+          variant="ghost"
+          className="p-2"
+          onClick={() => setShowEmojiPicker((v) => !v)}
+        >
+          <Smile className="h-6 w-6 text-gray-400" />
+        </Button>
+        {showEmojiPicker && (
+          <div className="absolute bottom-16 left-4 bg-white border rounded-lg shadow-lg p-2 z-50">
+            <Picker
+              onEmojiSelect={emoji => setNewMessage(newMessage + emoji.native)}
+              theme="light"
+              perLine={8}
+              emojiSize={24}
+              showPreview={false}
+              showSkinTones={false}
+            />
+          </div>
+        )}
+        {/* Upload button */}
+        <label className="p-2 cursor-pointer">
+          <input type="file" accept="image/*,.pdf,.doc,.docx,.txt,.zip,.rar" className="hidden" onChange={handleFileChange} disabled={uploading} />
+          <Paperclip className={`h-6 w-6 text-gray-400 ${uploading ? 'animate-pulse' : ''}`} />
+        </label>
+        <Input
+          value={newMessage}
+          onChange={handleInputChange}
+          placeholder={uploading ? 'Uploading file...' : 'Type your message...'}
+          className="flex-1"
+          disabled={sending || uploading}
+        />
+        <Button 
+          type="submit"
+          disabled={!newMessage.trim() || sending || uploading}
+          className="gradient-bg text-white"
+        >
+          {sending ? (
+            <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
+          ) : (
+            <Send className="h-5 w-5" />
+          )}
+        </Button>
       </form>
     </div>
   );

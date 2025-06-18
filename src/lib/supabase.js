@@ -26,11 +26,16 @@ export const signUp = async (userData) => {
       throw new Error('No user returned from signup');
     }
 
-    // Prepare profile data with arrays
+    // Prepare profile data with arrays and new fields
     const processedProfileData = {
       ...profileData,
-      skills: profileData.skills ? profileData.skills.split(',').map(s => s.trim()).filter(Boolean) : [],
-      interests: profileData.interests ? profileData.interests.split(',').map(i => i.trim()).filter(Boolean) : [],
+      skills: Array.isArray(profileData.skills) ? profileData.skills : (profileData.skills ? profileData.skills.split(',').map(s => s.trim()).filter(Boolean) : []),
+      interests: Array.isArray(profileData.interests) ? profileData.interests : (profileData.interests ? profileData.interests.split(',').map(i => i.trim()).filter(Boolean) : []),
+      portfolio_links: Array.isArray(profileData.portfolio_links) ? profileData.portfolio_links : (profileData.portfolio_links ? profileData.portfolio_links.filter(link => link.trim() !== '') : []),
+      major: profileData.major || '',
+      department: profileData.department || '',
+      role: profileData.role || 'founder',
+      status: profileData.status || 'active',
       auth_id: authData.user.id,
       email,
       is_admin: email === 'admin@foundermatch.com'
@@ -63,6 +68,11 @@ export const signIn = async (email, password) => {
     });
 
     if (authError) throw authError;
+
+    // Enforce email verification
+    if (!authData.user.email_confirmed_at) {
+      throw new Error('Please verify your email address before logging in.');
+    }
 
     // Get profile data
     const { data: profile, error: profileError } = await supabase
@@ -121,10 +131,13 @@ export const updateProfile = async (userId, profileData) => {
   try {
     const processedData = {
       ...profileData,
-      skills: Array.isArray(profileData.skills) ? profileData.skills : 
-        (profileData.skills ? profileData.skills.split(',').map(s => s.trim()).filter(Boolean) : []),
-      interests: Array.isArray(profileData.interests) ? profileData.interests :
-        (profileData.interests ? profileData.interests.split(',').map(i => i.trim()).filter(Boolean) : []),
+      skills: Array.isArray(profileData.skills) ? profileData.skills : (profileData.skills ? profileData.skills.split(',').map(s => s.trim()).filter(Boolean) : []),
+      interests: Array.isArray(profileData.interests) ? profileData.interests : (profileData.interests ? profileData.interests.split(',').map(i => i.trim()).filter(Boolean) : []),
+      portfolio_links: Array.isArray(profileData.portfolio_links) ? profileData.portfolio_links : (profileData.portfolio_links ? profileData.portfolio_links.filter(link => link.trim() !== '') : []),
+      major: profileData.major || '',
+      department: profileData.department || '',
+      role: profileData.role || 'founder',
+      status: profileData.status || 'active',
       updated_at: new Date().toISOString()
     };
 
@@ -276,4 +289,105 @@ export const subscribeToMatches = (userId, callback) => {
       callback
     )
     .subscribe();
+};
+
+// Resend email verification
+export const resendVerificationEmail = async (email) => {
+  try {
+    const { data, error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+    });
+    if (error) throw error;
+    return { success: true };
+  } catch (error) {
+    console.error('Resend verification error:', error);
+    return { success: false, message: error.message };
+  }
+};
+
+// Send password reset email
+export const sendPasswordResetEmail = async (email) => {
+  try {
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/reset-password',
+    });
+    if (error) throw error;
+    return { success: true };
+  } catch (error) {
+    console.error('Password reset error:', error);
+    return { success: false, message: error.message };
+  }
+};
+
+// Upload file/image to Supabase Storage
+export const uploadFileToStorage = async (file, userId) => {
+  const fileExt = file.name.split('.').pop();
+  const filePath = `chat/${userId}/${Date.now()}-${Math.random().toString(36).substr(2, 8)}.${fileExt}`;
+  const { data, error } = await supabase.storage.from('chat-uploads').upload(filePath, file);
+  if (error) throw error;
+  // Get public URL
+  const { publicURL } = supabase.storage.from('chat-uploads').getPublicUrl(filePath).data;
+  return publicURL;
+};
+
+// Event helper functions
+export const createEvent = async (eventData) => {
+  const { data, error } = await supabase
+    .from('events')
+    .insert([eventData])
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+};
+
+export const getEvents = async () => {
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .order('date', { ascending: true });
+  if (error) throw error;
+  return data;
+};
+
+export const joinEvent = async (eventId, userId) => {
+  // Fetch current attendees
+  const { data: event, error: fetchError } = await supabase
+    .from('events')
+    .select('attendees')
+    .eq('id', eventId)
+    .single();
+  if (fetchError) throw fetchError;
+  const attendees = event.attendees || [];
+  if (attendees.includes(userId)) return event; // Already joined
+  const updated = [...attendees, userId];
+  const { data, error } = await supabase
+    .from('events')
+    .update({ attendees: updated })
+    .eq('id', eventId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+};
+
+export const leaveEvent = async (eventId, userId) => {
+  // Fetch current attendees
+  const { data: event, error: fetchError } = await supabase
+    .from('events')
+    .select('attendees')
+    .eq('id', eventId)
+    .single();
+  if (fetchError) throw fetchError;
+  const attendees = event.attendees || [];
+  const updated = attendees.filter((id) => id !== userId);
+  const { data, error } = await supabase
+    .from('events')
+    .update({ attendees: updated })
+    .eq('id', eventId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
 }; 
