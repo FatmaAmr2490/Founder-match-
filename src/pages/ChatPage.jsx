@@ -4,12 +4,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
-import { Send, ArrowLeft, Smile, Paperclip } from 'lucide-react';
+import { Send, ArrowLeft, Paperclip } from 'lucide-react';
 import { motion } from 'framer-motion';
 import HelpCenter from '@/components/ui/help-center';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 dayjs.extend(relativeTime);
+
+const LOCAL_MESSAGES_KEY = 'founderMatchMessages';
+const LOCAL_USERS_KEY = 'founderMatchUsers';
 
 const ChatPage = () => {
   const { receiverId } = useParams();
@@ -20,166 +23,68 @@ const ChatPage = () => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
   const [receiverProfile, setReceiverProfile] = useState(null);
   const [isTyping, setIsTyping] = useState(false);
   const [quickReplies] = useState(['👍', 'Thanks!', '😊', "Let's connect!"]);
   const [uploading, setUploading] = useState(false);
 
+  // Fetch receiver profile from localStorage
   useEffect(() => {
     if (!user || !receiverId) return;
-
-    const fetchReceiverProfile = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', receiverId)
-          .single();
-
-        if (error) throw error;
-        setReceiverProfile(data);
-      } catch (error) {
-        console.error('Error fetching receiver profile:', error);
-        toast({
-          title: 'Error',
-          description: 'Could not load contact information.',
-          variant: 'destructive',
-        });
-      }
-    };
-
-    fetchReceiverProfile();
-    loadMessages(true);
-
-    const channel = supabase
-      .channel('chat-messages')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-        },
-        (payload) => {
-          const msg = payload.new;
-          if (
-            (msg.sender_id === user.id && msg.receiver_id === receiverId) ||
-            (msg.sender_id === receiverId && msg.receiver_id === user.id)
-          ) {
-            handleNewMessage(payload);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    setLoading(true);
+    const users = JSON.parse(localStorage.getItem(LOCAL_USERS_KEY) || '[]');
+    const found = users.find(u => String(u.id) === String(receiverId));
+    setReceiverProfile(found || { name: 'User', university: '' });
+    setLoading(false);
   }, [user, receiverId]);
 
-  const loadMessages = async (reset = false) => {
-    if (!user || !receiverId) return;
-
-    try {
-      setLoading(true);
-      const currentPage = reset ? 1 : page;
-      const { messages: newMessages, hasMore: moreMessages } = await getMessages(
-        user.id,
-        receiverId,
-        currentPage
-      );
-
-      if (reset) {
-        setMessages(newMessages);
-      } else {
-        setMessages((prev) => [...prev, ...newMessages]);
-      }
-
-      setHasMore(moreMessages);
-      setPage(currentPage + 1);
-    } catch (error) {
-      console.error('Error loading messages:', error);
-      toast({
-        title: 'Error',
-        description: 'Could not load messages. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleNewMessage = (payload) => {
-    const newMsg = payload.new;
-    if (!newMsg) return;
-
-    setMessages((prev) => {
-      const exists = prev.some((msg) => msg.id === newMsg.id);
-      if (exists) return prev;
-
-      return [
-        ...prev,
-        {
-          ...newMsg,
-          sender_name: newMsg.sender_id === user.id ? 'You' : receiverProfile?.name || 'User',
-          receiver_name: newMsg.receiver_id === user.id ? 'You' : receiverProfile?.name || 'User',
-        },
-      ];
-    });
-  };
-
-  const handleSend = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim() || sending) return;
-
-    try {
-      setSending(true);
-      await sendMessage(user.id, receiverId, newMessage.trim());
-      setNewMessage('');
-    } catch (error) {
-      console.error('Error sending message:', error);
-    toast({
-        title: 'Error',
-        description: 'Could not send message. Please try again.',
-      variant: 'destructive',
-    });
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const handleFileChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const url = await uploadFileToStorage(file, user.id);
-      // Send as image or file message
-      let content = url;
-      if (file.type.startsWith('image/')) {
-        content = `[image]${url}`;
-      }
-      await sendMessage(user.id, receiverId, content);
-      toast({ title: 'File sent!' });
-    } catch (error) {
-      toast({ title: 'Upload failed', description: error.message, variant: 'destructive' });
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
+  // Load messages from localStorage
   useEffect(() => {
-    scrollToBottom();
+    if (!user || !receiverId) return;
+    setLoading(true);
+    const allMessages = JSON.parse(localStorage.getItem(LOCAL_MESSAGES_KEY) || '[]');
+    const chatMessages = allMessages.filter(
+      m =>
+        (String(m.sender_id) === String(user.id) && String(m.receiver_id) === String(receiverId)) ||
+        (String(m.sender_id) === String(receiverId) && String(m.receiver_id) === String(user.id))
+    );
+    setMessages(chatMessages);
+    setLoading(false);
+  }, [user, receiverId]);
+
+  // Save message to localStorage
+  const handleSend = (e) => {
+    e.preventDefault();
+    if (!newMessage.trim()) return;
+    const allMessages = JSON.parse(localStorage.getItem(LOCAL_MESSAGES_KEY) || '[]');
+    const msg = {
+      id: Date.now(),
+      sender_id: user.id,
+      receiver_id: receiverId,
+      content: newMessage.trim(),
+      created_at: new Date().toISOString(),
+    };
+    const updatedMessages = [...allMessages, msg];
+    localStorage.setItem(LOCAL_MESSAGES_KEY, JSON.stringify(updatedMessages));
+    setMessages(prev => [...prev, msg]);
+    setNewMessage('');
+  };
+
+  // Typing indicator logic (simple demo)
+  let typingTimeout;
+  const handleInputChange = (e) => {
+    setNewMessage(e.target.value);
+    setIsTyping(true);
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => setIsTyping(false), 1500);
+  };
+
+  // Scroll to bottom on new messages
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Helper for grouping messages
+  // Group messages by sender
   const groupMessages = (messages) => {
     const groups = [];
     let lastSender = null;
@@ -199,15 +104,6 @@ const ChatPage = () => {
     return groups;
   };
 
-  // Typing indicator logic (simple demo)
-  let typingTimeout;
-  const handleInputChange = (e) => {
-    setNewMessage(e.target.value);
-    setIsTyping(true);
-    clearTimeout(typingTimeout);
-    typingTimeout = setTimeout(() => setIsTyping(false), 1500);
-  };
-
   if (!user || !receiverProfile) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -215,7 +111,7 @@ const ChatPage = () => {
       </div>
     );
   }
-  
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Help Center at the very top */}
@@ -236,7 +132,7 @@ const ChatPage = () => {
           <h2 className="text-lg font-semibold">{receiverProfile.name || 'Chat'}</h2>
           <p className="text-sm text-gray-500">{receiverProfile.university || 'No university listed'}</p>
         </div>
-          </div>
+      </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -246,20 +142,8 @@ const ChatPage = () => {
           </div>
         ) : (
           <>
-            {hasMore && (
-              <div className="flex justify-center">
-                <Button 
-                  variant="ghost" 
-                  onClick={() => loadMessages()}
-                  disabled={loading}
-                >
-                  {loading ? 'Loading...' : 'Load More'}
-                </Button>
-              </div>
-            )}
-            {/* Grouped messages with avatars */}
             {groupMessages(messages).map((group, idx) => {
-              const isCurrentUser = group.sender_id === user.id;
+              const isCurrentUser = String(group.sender_id) === String(user.id);
               const senderProfile = isCurrentUser ? user : receiverProfile;
               const avatarLetter = senderProfile?.name ? senderProfile.name.charAt(0).toUpperCase() : 'U';
               return (
@@ -274,44 +158,25 @@ const ChatPage = () => {
                       {isCurrentUser ? 'You' : senderProfile?.name || 'User'}
                     </span>
                   </div>
-                  {group.messages.map((message, mIdx) => {
-                    let isImage = false;
-                    let fileUrl = '';
-                    if (message.content.startsWith('[image]')) {
-                      isImage = true;
-                      fileUrl = message.content.replace('[image]', '');
-                    } else if (/^https?:\/\//.test(message.content) && (message.content.match(/\.(jpg|jpeg|png|gif|webp)$/i))) {
-                      isImage = true;
-                      fileUrl = message.content;
-                    } else if (/^https?:\/\//.test(message.content)) {
-                      fileUrl = message.content;
-                    }
-                    return (
-                      <motion.div
-                        key={message.id || mIdx}
-                        initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
-                        className={`max-w-[70%] rounded-lg p-3 mb-1 ${
-                          isCurrentUser
-                            ? 'bg-red-500 text-white self-end'
-                            : 'bg-white shadow-md self-start'
-                        }`}
-                      >
-                        {isImage ? (
-                          <img src={fileUrl} alt="sent file" className="rounded-lg max-w-xs max-h-60 mb-2" />
-                        ) : fileUrl ? (
-                          <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="underline text-blue-600 break-all">Download file</a>
-                        ) : (
-                          <p className="text-sm">{message.content}</p>
-                        )}
-                        <span className="text-xs opacity-70 mt-1 block">
-                          {dayjs(message.created_at).fromNow()}
-                        </span>
-                  </motion.div>
-                    );
-                  })}
-                    </div>
+                  {group.messages.map((message, mIdx) => (
+                    <motion.div
+                      key={message.id || mIdx}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className={`max-w-[70%] rounded-lg p-3 mb-1 ${
+                        isCurrentUser
+                          ? 'bg-red-500 text-white self-end'
+                          : 'bg-white shadow-md self-start'
+                      }`}
+                    >
+                      <p className="text-sm">{message.content}</p>
+                      <span className="text-xs opacity-70 mt-1 block">
+                        {dayjs(message.created_at).fromNow()}
+                      </span>
+                    </motion.div>
+                  ))}
+                </div>
               );
             })}
             {isTyping && (
@@ -339,19 +204,14 @@ const ChatPage = () => {
         ))}
       </div>
 
-      {/* Message Input with Emoji Picker and Upload */}
+      {/* Message Input */}
       <form onSubmit={handleSend} className="p-4 bg-white flex space-x-2 items-center border-t relative">
-        {/* Upload button */}
-        <label className="p-2 cursor-pointer">
-          <input type="file" accept="image/*,.pdf,.doc,.docx,.txt,.zip,.rar" className="hidden" onChange={handleFileChange} disabled={uploading} />
-          <Paperclip className={`h-6 w-6 text-gray-400 ${uploading ? 'animate-pulse' : ''}`} />
-        </label>
         <Input
           value={newMessage}
           onChange={handleInputChange}
           placeholder="Type your message..."
           className="flex-1"
-          disabled={sending || uploading}
+          disabled={uploading}
           autoFocus
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -359,7 +219,7 @@ const ChatPage = () => {
             }
           }}
         />
-        <Button type="submit" disabled={sending || uploading || !newMessage.trim()} className="p-2">
+        <Button type="submit" disabled={uploading || !newMessage.trim()} className="p-2">
           <Send className="h-6 w-6" />
         </Button>
       </form>
