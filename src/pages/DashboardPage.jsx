@@ -375,7 +375,7 @@ const DashboardPage = () => {
                           <div className="flex justify-center gap-2 mb-2">
                             {match.role && <span className="inline-flex items-center px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-semibold"><Award className="h-3 w-3 mr-1" />{match.role}</span>}
                             {match.status && <span className="inline-flex items-center px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold"><BadgeCheck className="h-3 w-3 mr-1" />{match.status}</span>}
-                          </div>
+                        </div>
                           {/* Major and Department */}
                           <div className="flex flex-col items-center mb-2">
                             {match.major && <span className="text-xs text-gray-600"><Briefcase className="h-3 w-3 inline mr-1" />{match.major}</span>}
@@ -390,8 +390,8 @@ const DashboardPage = () => {
                                   <a key={idx} href={link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-2 py-1 bg-blue-50 text-blue-600 rounded-full text-xs hover:underline"><LinkIcon className="h-3 w-3 mr-1" />{link.replace(/^https?:\/\//, '').slice(0, 16)}...</a>
                                 ))}
                               </div>
-                            </div>
-                          )}
+                          </div>
+                        )}
                         </div>
 
                         {/* Skills */}

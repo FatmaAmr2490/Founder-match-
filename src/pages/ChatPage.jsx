@@ -240,7 +240,7 @@ const ChatPage = () => {
           <h2 className="text-lg font-semibold">{receiverProfile.name || 'Chat'}</h2>
           <p className="text-sm text-gray-500">{receiverProfile.university || 'No university listed'}</p>
         </div>
-      </div>
+          </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -252,8 +252,8 @@ const ChatPage = () => {
           <>
             {hasMore && (
               <div className="flex justify-center">
-                <Button
-                  variant="ghost"
+                <Button 
+                  variant="ghost" 
                   onClick={() => loadMessages()}
                   disabled={loading}
                 >
@@ -294,8 +294,8 @@ const ChatPage = () => {
                       <motion.div
                         key={message.id || mIdx}
                         initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
                         className={`max-w-[70%] rounded-lg p-3 mb-1 ${
                           isCurrentUser
                             ? 'bg-red-500 text-white self-end'
@@ -312,10 +312,10 @@ const ChatPage = () => {
                         <span className="text-xs opacity-70 mt-1 block">
                           {dayjs(message.created_at).fromNow()}
                         </span>
-                      </motion.div>
+                  </motion.div>
                     );
                   })}
-                </div>
+                    </div>
               );
             })}
             {isTyping && (
@@ -371,16 +371,16 @@ const ChatPage = () => {
           <Paperclip className={`h-6 w-6 text-gray-400 ${uploading ? 'animate-pulse' : ''}`} />
         </label>
         <Input
-          value={newMessage}
+                    value={newMessage}
           onChange={handleInputChange}
           placeholder={uploading ? 'Uploading file...' : 'Type your message...'}
           className="flex-1"
           disabled={sending || uploading}
-        />
-        <Button 
+                  />
+                  <Button 
           type="submit"
           disabled={!newMessage.trim() || sending || uploading}
-          className="gradient-bg text-white"
+                    className="gradient-bg text-white"
         >
           {sending ? (
             <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />

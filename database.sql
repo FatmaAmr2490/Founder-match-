@@ -50,19 +50,6 @@ CREATE TABLE matches (
     UNIQUE(user1_id, user2_id)
 );
 
--- Messages table
-CREATE TABLE messages (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    sender_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-    receiver_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-    content TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    type TEXT DEFAULT 'text',
-    read BOOLEAN DEFAULT FALSE,
-    read_at TIMESTAMPTZ
-);
-
 -- Events table
 CREATE TABLE IF NOT EXISTS events (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -76,19 +63,31 @@ CREATE TABLE IF NOT EXISTS events (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Messages table
+CREATE TABLE messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    sender_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+    receiver_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    type TEXT DEFAULT 'text',
+    read BOOLEAN DEFAULT FALSE,
+    read_at TIMESTAMPTZ
+);
+
 -- ============================
 -- INDEXES
 -- ============================
 
-CREATE INDEX idx_profiles_auth_id ON profiles(auth_id);
-CREATE INDEX idx_profiles_email ON profiles(email);
+-- Remove redundant indexes on auth_id and email (already unique)
 CREATE INDEX idx_matches_users ON matches(user1_id, user2_id);
-CREATE INDEX idx_messages_sender ON messages(sender_id);
-CREATE INDEX idx_messages_receiver ON messages(receiver_id);
-CREATE INDEX idx_messages_created_at ON messages(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_profiles_skills ON profiles USING GIN(skills);
 CREATE INDEX IF NOT EXISTS idx_profiles_interests ON profiles USING GIN(interests);
 CREATE INDEX IF NOT EXISTS idx_events_date ON events(date DESC);
+CREATE INDEX idx_messages_sender ON messages(sender_id);
+CREATE INDEX idx_messages_receiver ON messages(receiver_id);
+CREATE INDEX idx_messages_created_at ON messages(created_at DESC);
 
 -- ============================
 -- TRIGGERS: updated_at handler
@@ -229,9 +228,11 @@ CREATE TRIGGER on_auth_user_created
 -- ============================
 
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
-GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
+-- Only grant SELECT to anon, not ALL
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
 
 -- ============================
 -- Final cleanup
@@ -244,12 +245,11 @@ DELETE FROM matches WHERE
     user1_id NOT IN (SELECT id FROM profiles) OR 
     user2_id NOT IN (SELECT id FROM profiles);
 
+-- Remove any leftover orphaned events
+DELETE FROM events WHERE 
+    created_by IS NOT NULL AND created_by NOT IN (SELECT id FROM profiles);
+
+-- Remove any leftover orphaned messages
 DELETE FROM messages
 WHERE sender_id NOT IN (SELECT id FROM profiles)
    OR receiver_id NOT IN (SELECT id FROM profiles);
-
-ALTER TABLE profiles ADD COLUMN IF NOT EXISTS major TEXT;
-ALTER TABLE profiles ADD COLUMN IF NOT EXISTS department TEXT;
-ALTER TABLE profiles ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'founder';
-ALTER TABLE profiles ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
-ALTER TABLE profiles ADD COLUMN IF NOT EXISTS portfolio_links TEXT[] DEFAULT ARRAY[]::TEXT[];
