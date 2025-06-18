@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const LandingPage = () => {
   const navigate = useNavigate();
-  const { currentUser, isAdmin, logout } = useAuth();
+  const { user, logout } = useAuth();
 
   const fadeInUp = {
     initial: { opacity: 0, y: 60 },
@@ -58,9 +58,9 @@ const LandingPage = () => {
             How It Works
           </Button>
           
-          {currentUser ? (
+          {user ? (
             <>
-              {isAdmin ? (
+              {user?.is_admin ? (
                 <>
                 <Button 
                   variant="ghost" 
