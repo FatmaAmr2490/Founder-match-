@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 const LandingPage = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { currentUser, isAdmin, logout } = useAuth();
 
   const fadeInUp = {
     initial: { opacity: 0, y: 60 },
@@ -58,25 +58,16 @@ const LandingPage = () => {
             How It Works
           </Button>
           
-          {user ? (
+          {currentUser ? (
             <>
-              {user?.is_admin ? (
-                <>
+              {isAdmin ? (
                 <Button 
                   variant="ghost" 
                   onClick={() => navigate('/admin')}
                   className="text-gray-600 hover:text-red-600"
                 >
-                    <Shield className="h-4 w-4 mr-2" /> Admin Panel
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    onClick={() => navigate('/admin/users')}
-                    className="text-gray-600 hover:text-red-600"
-                  >
-                    <Users className="h-4 w-4 mr-2" /> Manage Users
+                  <Shield className="h-4 w-4 mr-2" /> Admin
                 </Button>
-                </>
               ) : (
                 <Button 
                   variant="ghost" 
@@ -279,16 +270,21 @@ const LandingPage = () => {
                 </a>
               </div>
             </div>
-            <div className="pl-24">
+            <div>
+              <span className="text-lg font-semibold mb-4 block">Quick Links</span>
+              <div className="flex flex-col space-y-2">
+                <Link to="/#about" onClick={() => document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' })} className="text-gray-400 hover:text-white cursor-pointer transition-colors">About Us</Link>
+                <Link to="/#how-it-works" onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })} className="text-gray-400 hover:text-white cursor-pointer transition-colors">How It Works</Link>
+                <p className="text-gray-400 hover:text-white cursor-pointer transition-colors">Success Stories</p>
+              </div>
+            </div>
+            <div>
               <span className="text-lg font-semibold mb-4 block">Legal</span>
               <div className="flex flex-col space-y-2">
                 <a href="mailto:foundermatch13@gmail.com" className="text-gray-400 hover:text-white cursor-pointer transition-colors">Contact</a>
                 <Link to="/privacy-policy" className="text-gray-400 hover:text-white cursor-pointer transition-colors">Privacy Policy</Link>
                 <Link to="/terms-of-service" className="text-gray-400 hover:text-white cursor-pointer transition-colors">Terms of Service</Link>
               </div>
-            </div>
-            <div className="flex items-center">
-              <p className="text-gray-400 italic">"Every world-changing idea begins with two minds that were meant to meet"</p>
             </div>
           </div>
           <div className="border-t border-gray-800 mt-8 pt-8 text-center">

@@ -3,8 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { HelpCircle, X, Search, Bot } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
+import { HelpCircle, X, Send, Bot, Search } from 'lucide-react';
 
 const commonQuestions = [
   {
@@ -38,22 +37,6 @@ const commonQuestions = [
   {
     q: "Resources for early-stage founders?",
     a: "Look for resources like startup incubators/accelerators, mentorship programs, online courses, industry blogs, networking events, and government grants or support schemes."
-  },
-  {
-    q: "How to write a compelling founder bio?",
-    a: "Focus on your unique experiences, skills, and achievements. Highlight your passion for entrepreneurship, relevant industry expertise, and what drives you to build a startup."
-  },
-  {
-    q: "What should I look for in a co-founder?",
-    a: "Look for complementary skills, shared values, commitment level, communication style, and problem-solving abilities. Ensure your potential co-founder shares your vision and work ethic."
-  },
-  {
-    q: "How to prepare for co-founder meetings?",
-    a: "Research their background, prepare specific questions about their experience and goals, be clear about your own vision and expectations, and be ready to discuss potential roles and responsibilities."
-  },
-  {
-    q: "What makes a strong startup team?",
-    a: "A strong startup team has diverse skills, clear communication, shared values, mutual respect, adaptability, and a commitment to the company's mission and vision."
   }
 ];
 
@@ -61,9 +44,6 @@ const HelpCenter = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedQuestion, setSelectedQuestion] = useState(null);
-  const location = useLocation();
-
-  const isInChat = location.pathname === '/chat';
 
   const filteredQuestions = commonQuestions.filter(q =>
     q.q.toLowerCase().includes(searchTerm.toLowerCase())
@@ -73,16 +53,16 @@ const HelpCenter = () => {
     <>
       {/* Floating Help Button */}
       <motion.div
-        className={`fixed ${isInChat ? 'top-6' : 'bottom-6'} right-6 z-50`}
+        className="fixed bottom-6 right-6 z-50"
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
         transition={{ type: "spring", stiffness: 260, damping: 20 }}
       >
         <Button
-          className={`${isInChat ? 'w-12 h-12' : 'w-14 h-14'} rounded-full gradient-bg text-white shadow-xl hover:shadow-2xl`}
+          className="w-14 h-14 rounded-full gradient-bg text-white shadow-xl hover:shadow-2xl"
           onClick={() => setIsOpen(true)}
         >
-          <HelpCircle className={`${isInChat ? 'w-5 h-5' : 'w-6 h-6'}`} />
+          <HelpCircle className="w-6 h-6" />
         </Button>
       </motion.div>
 
@@ -101,17 +81,17 @@ const HelpCenter = () => {
 
             {/* Help Center Card */}
             <motion.div
-              className={`fixed ${isInChat ? 'top-24' : 'bottom-24'} right-6 w-full max-w-md z-50`}
-              initial={{ opacity: 0, y: isInChat ? -100 : 100, scale: 0.9 }}
+              className="fixed bottom-24 right-6 w-full max-w-md z-50"
+              initial={{ opacity: 0, y: 100, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: isInChat ? -100 : 100, scale: 0.9 }}
+              exit={{ opacity: 0, y: 100, scale: 0.9 }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
             >
               <Card className="shadow-2xl border-2">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
                   <CardTitle className="text-xl font-bold flex items-center">
                     <Bot className="w-6 h-6 text-red-600 mr-2" />
-                    Help Center
+                    AI Help Center
                   </CardTitle>
                   <Button
                     variant="ghost"
@@ -170,6 +150,21 @@ const HelpCenter = () => {
                             </Button>
                           </motion.div>
                         ))}
+                      </div>
+
+                      <div className="pt-4 border-t">
+                        <div className="flex items-center space-x-2">
+                          <Input
+                            placeholder="Ask a question..."
+                            className="flex-1"
+                          />
+                          <Button className="gradient-bg text-white">
+                            <Send className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                          Type your question or browse common topics above
+                        </p>
                       </div>
                     </div>
                   )}

@@ -2,6 +2,13 @@ import { POPUP_STYLES, getPopupHTMLTemplate } from './plugins/visual-editor/visu
 
 const PLUGIN_APPLY_EDIT_API_URL = '/api/apply-edit';
 
+const ALLOWED_PARENT_ORIGINS = [
+	'https://horizons.hostinger.com',
+	'https://horizons.hostinger.dev',
+	'https://horizons-frontend-local.hostinger.dev',
+	'http://localhost:4000',
+];
+
 let popupElement = null;
 let popupTextarea = null;
 let popupSaveButton = null;
@@ -66,6 +73,13 @@ function showPopup(targetElement, editId, currentText) {
 
   popupElement.classList.add('is-active');
   popupTextarea.focus();
+
+ const parentOrigin = getParentOrigin();
+ if (parentOrigin && ALLOWED_PARENT_ORIGINS.includes(parentOrigin)) {
+   window.parent.postMessage({
+     type: 'editEnter',
+   }, parentOrigin);
+ }
 }
 
 function hidePopup() {
@@ -135,7 +149,11 @@ function getParentOrigin() {
 async function handlePopupSave() {
   if (!currentEditingInfo) return;
   
-  const newText = popupTextarea.value;
+  const newText = popupTextarea.value
+  // Escape < and > to prevent user from crashing sandbox by entering invalid HTML tags into source code
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
   const { editId } = currentEditingInfo;
 
   try {
@@ -152,12 +170,6 @@ async function handlePopupSave() {
 
     const result = await response.json();
     if (result.success) {
-      const ALLOWED_PARENT_ORIGINS = [
-        'https://horizons.hostinger.com',
-        'https://horizons.hostinger.dev',
-        'https://horizons-frontend-local.hostinger.dev',
-      ];
-
       const parentOrigin = getParentOrigin();
       if (parentOrigin && ALLOWED_PARENT_ORIGINS.includes(parentOrigin)) {
         window.parent.postMessage({
@@ -165,6 +177,8 @@ async function handlePopupSave() {
           payload: {
             editId: editId,
             fileContent: result.newFileContent,
+            beforeCode: result.beforeCode,
+            afterCode: result.afterCode,
           }
         }, parentOrigin);
       } else {
@@ -181,6 +195,13 @@ async function handlePopupSave() {
 }
 
 function handlePopupCancel() {
+ const parentOrigin = getParentOrigin();
+ if (parentOrigin && ALLOWED_PARENT_ORIGINS.includes(parentOrigin)) {
+   window.parent.postMessage({
+     type: 'editCancel',
+   }, parentOrigin);
+ }
+
   hidePopup();
 }
 

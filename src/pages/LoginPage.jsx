@@ -1,47 +1,46 @@
 import React, { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
-import { Eye, EyeOff, LogIn } from 'lucide-react';
+import { Users, ArrowLeft, LogIn, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const { toast } = useToast();
   const { login } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [showForgot, setShowForgot] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState('');
-  const [formData, setFormData] = useState({
-    email: '',
-    password: ''
-  });
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    setLoading(true);
+    if (!email || !password) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter both email and password.",
+        variant: "destructive"
+      });
+      return;
+    }
 
-    try {
-      const result = await login(formData.email, formData.password);
+    const result = login(email, password);
 
     if (result.success) {
       toast({
-          title: "Welcome back!",
-          description: `Redirecting you to the ${result.isAdmin ? 'admin panel' : 'dashboard'}...`,
+        title: "Login Successful!",
+        description: `Welcome back! Redirecting you to the ${result.isAdmin ? 'admin panel' : 'dashboard'}...`,
       });
-        
-        // Get the redirect path from location state or default to dashboard/admin
-        const destination = location.state?.from?.pathname || (result.isAdmin ? '/admin' : '/dashboard');
-        
-        // Add a small delay before navigation
       setTimeout(() => {
-          navigate(destination, { replace: true });
+        if (result.isAdmin) {
+          navigate('/admin');
+        } else {
+          navigate('/dashboard');
+        }
       }, 1500);
     } else {
       toast({
@@ -50,162 +49,107 @@ const LoginPage = () => {
         variant: "destructive"
       });
     }
-    } catch (error) {
-      console.error('Login error:', error);
-      toast({
-        title: "Error",
-        description: error.message || "An unexpected error occurred. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleForgotPassword = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      // Placeholder for the removed resendVerificationEmail function
-      toast({
-        title: 'Password Reset Email Sent',
-        description: 'Check your email for a link to reset your password.',
-      });
-      setShowForgot(false);
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to send password reset email.',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <motion.header 
+        className="px-4 lg:px-6 h-16 flex items-center bg-white border-b border-gray-100"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <Button 
+          variant="ghost" 
+          onClick={() => navigate('/')}
+          className="mr-4"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Home
+        </Button>
+        <div className="flex items-center">
+          <Users className="h-8 w-8 text-red-600 mr-2" />
+          <span className="text-2xl font-bold gradient-text">FounderMatch</span>
+        </div>
+      </motion.header>
+
+      <div className="flex-1 flex items-center justify-center container mx-auto px-4 py-12">
         <motion.div
-          className="max-w-md mx-auto"
+          className="w-full max-w-md"
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
           <Card className="shadow-2xl border-0">
             <CardHeader className="text-center pb-8">
-              <CardTitle className="text-3xl font-bold mb-4">
-                Welcome Back
+              <CardTitle className="text-3xl lg:text-4xl font-bold mb-4">
+                Welcome Back!
               </CardTitle>
-              <p className="text-gray-600">
-                Sign in to continue your co-founder search
+              <p className="text-gray-600 text-lg">
+                Log in to continue your journey.
               </p>
             </CardHeader>
             
-            <CardContent>
+            <CardContent className="space-y-6">
               <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="space-y-4">
-                  {/* Email Field */}
-                  <div>
+                <div className="space-y-2">
                   <Label htmlFor="email" className="text-sm font-semibold">
                     Email Address
                   </Label>
                   <Input
                     id="email"
                     type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                      placeholder="you@example.com"
-                      className="h-12"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="your@email.com"
+                    className="h-12 border-2 focus:border-red-500"
                     required
-                      disabled={loading}
                   />
                 </div>
                 
-                  {/* Password Field */}
-                  <div className="relative">
+                <div className="space-y-2 relative">
                   <Label htmlFor="password" className="text-sm font-semibold">
                     Password
                   </Label>
-                    <div className="relative">
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                        value={formData.password}
-                        onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
-                        className="h-12 pr-10"
+                    className="h-12 border-2 focus:border-red-500 pr-10"
                     required
-                        disabled={loading}
                   />
                    <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7"
+                    className="absolute right-2 top-8 h-7 w-7 text-gray-500 hover:text-red-500"
                     onClick={() => setShowPassword(!showPassword)}
-                        disabled={loading}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
-                    </div>
-                  </div>
                 </div>
 
+                <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
                   <Button 
                     type="submit" 
-                  className="w-full h-12 gradient-bg text-white font-semibold"
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-2" />
-                      Signing In...
-                    </div>
-                  ) : (
-                    <>
+                    className="w-full h-12 gradient-bg text-white font-semibold text-lg rounded-lg hover:shadow-xl transition-all duration-300"
+                  >
                     <LogIn className="mr-2 h-5 w-5" />
-                      Sign In
-                    </>
-                  )}
+                    Log In
                   </Button>
-
+                </motion.div>
+              </form>
               <p className="text-center text-sm text-gray-600">
                 Don't have an account?{' '}
                 <Link to="/signup" className="font-semibold text-red-600 hover:underline">
-                    Create Account
+                  Sign Up
                 </Link>
               </p>
-              </form>
-              <div className="mt-4 text-center">
-                <button
-                  type="button"
-                  className="text-red-600 hover:underline text-sm"
-                  onClick={() => setShowForgot(!showForgot)}
-                  disabled={loading}
-                >
-                  Forgot Password?
-                </button>
-              </div>
-              {showForgot && (
-                <form onSubmit={handleForgotPassword} className="mt-4 space-y-4">
-                  <Input
-                    type="email"
-                    placeholder="Enter your email address"
-                    value={forgotEmail}
-                    onChange={e => setForgotEmail(e.target.value)}
-                    required
-                    disabled={loading}
-                  />
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={loading || !forgotEmail}
-                  >
-                    {loading ? 'Sending...' : 'Send Password Reset Email'}
-                  </Button>
-                </form>
-              )}
             </CardContent>
           </Card>
         </motion.div>

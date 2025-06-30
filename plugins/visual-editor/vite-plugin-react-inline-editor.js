@@ -266,8 +266,16 @@ export default function inlineEditPlugin() {
               return res.end(JSON.stringify({ error: 'Target node not found by line/column', editId }));
             }
 
-            let modified = false;
+            const generateFunction = generate.default || generate;
             const parentElementNode = targetNodePath.parentPath?.node;
+            let beforeCode = '';
+            
+            if (parentElementNode && t.isJSXElement(parentElementNode)) {
+              const beforeOutput = generateFunction(parentElementNode, {});
+              beforeCode = beforeOutput.code;
+            }
+
+            let modified = false;
 
             if (parentElementNode && t.isJSXElement(parentElementNode)) {
               parentElementNode.children = [];
@@ -280,11 +288,15 @@ export default function inlineEditPlugin() {
 
             if (!modified) {
               res.writeHead(409, { 'Content-Type': 'application/json' });
-
               return res.end(JSON.stringify({ error: 'Could not apply changes to AST.' }));
             }
 
-            const generateFunction = generate.default || generate;
+            let afterCode = '';
+            if (parentElementNode && t.isJSXElement(parentElementNode)) {
+              const afterOutput = generateFunction(parentElementNode, {});
+              afterCode = afterOutput.code;
+            }
+
             const output = generateFunction(babelAst, {});
             const newContent = output.code;
 
@@ -298,7 +310,9 @@ export default function inlineEditPlugin() {
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ 
                 success: true, 
-                newFileContent: newContent 
+                newFileContent: newContent,
+                beforeCode,
+                afterCode,
             }));
             
           } catch (error) {
