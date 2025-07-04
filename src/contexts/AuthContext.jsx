@@ -53,27 +53,30 @@ export const AuthProvider = ({ children }) => {
     return { success: true, isAdmin: isAdminUser };
   };
 
-  const login = (email, password) => {
-    const users = JSON.parse(localStorage.getItem('founderMatchUsers') || '[]');
-    const userFound = users.find(user => user.email === email && user.password === password);
 
-    if (userFound) {
-      const { password: _, ...userDataToStore } = userFound; // Don't store password in active currentUser state
-      setCurrentUser(userDataToStore);
-      localStorage.setItem('currentUser', JSON.stringify(userDataToStore));
-      
-      const isAdminUser = userFound.email === 'admin@foundermatch.com';
-      if (isAdminUser) {
-        setIsAdmin(true);
-        localStorage.setItem('isAdmin', 'true');
-      } else {
-        setIsAdmin(false);
-        localStorage.removeItem('isAdmin'); // Ensure isAdmin is false if not admin
-      }
+const login = async (email, password) => {
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setCurrentUser(data.user);
+      localStorage.setItem('currentUser', JSON.stringify(data.user));
+      // Set admin if needed
+      const isAdminUser = data.user.email === 'admin@foundermatch.com';
+      setIsAdmin(isAdminUser);
+      localStorage.setItem('isAdmin', isAdminUser ? 'true' : 'false');
       return { success: true, isAdmin: isAdminUser };
+    } else {
+      return { success: false, message: data.error || 'Login failed.' };
     }
-    return { success: false, message: "Invalid email or password." };
-  };
+  } catch (err) {
+    return { success: false, message: 'Network error.' };
+  }
+};
 
   const logout = () => {
     setCurrentUser(null);

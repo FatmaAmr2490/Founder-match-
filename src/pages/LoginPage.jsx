@@ -17,39 +17,39 @@ const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!email || !password) {
-      toast({
-        title: "Missing Information",
-        description: "Please enter both email and password.",
-        variant: "destructive"
-      });
-      return;
-    }
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  if (!email || !password) {
+    toast({
+      title: "Missing Information",
+      description: "Please enter both email and password.",
+      variant: "destructive"
+    });
+    return;
+  }
 
-    const result = login(email, password);
+  const result = await login(email, password);
 
-    if (result.success) {
-      toast({
-        title: "Login Successful!",
-        description: `Welcome back! Redirecting you to the ${result.isAdmin ? 'admin panel' : 'dashboard'}...`,
-      });
-      setTimeout(() => {
-        if (result.isAdmin) {
-          navigate('/admin');
-        } else {
-          navigate('/dashboard');
-        }
-      }, 1500);
-    } else {
-      toast({
-        title: "Login Failed",
-        description: result.message || "Invalid credentials. Please try again.",
-        variant: "destructive"
-      });
-    }
-  };
+  if (result.success) {
+    toast({
+      title: "Login Successful!",
+      description: `Welcome back! Redirecting you to the ${result.isAdmin ? 'admin panel' : 'dashboard'}...`,
+    });
+    setTimeout(() => {
+      if (result.isAdmin) {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
+    }, 1500);
+  } else {
+    toast({
+      title: "Login Failed",
+      description: result.message || "Invalid credentials. Please try again.",
+      variant: "destructive"
+    });
+  }
+};
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
