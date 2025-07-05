@@ -1,104 +1,118 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+// src/contexts/AuthContext.jsx
+import React, {
+  createContext,
+  useState,
+  useEffect,
+  useCallback,
+  useContext
+} from 'react'
+import { useNavigate } from 'react-router-dom'
 
-const AuthContext = createContext(null);
+const AuthContext = createContext({
+  currentUser: null,
+  isAdmin: false,
+  loading: true,
+  login: async () => {},
+  logout: async () => {},
+  checkLoginStatus: async () => {}
+})
 
 export const AuthProvider = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+  const [currentUser, setCurrentUser] = useState(null)
+  const [isAdmin, setIsAdmin]       = useState(false)
+  const [loading, setLoading]       = useState(true)
+  const navigate                    = useNavigate()
 
-  const checkLoginStatus = () => {
-    const storedUser = localStorage.getItem('currentUser');
-    const storedIsAdmin = localStorage.getItem('isAdmin') === 'true';
-    
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        // We don't store password in currentUser state for security,
-        // but it was saved during signup.
-        // For login, we'd check against the full user record from localStorage.
-        setCurrentUser(parsedUser); 
-      } catch (error) {
-        console.error("Failed to parse stored user:", error);
-        localStorage.removeItem('currentUser');
+  // Fetch /api/auth/me to see if we’re already logged in
+  const checkLoginStatus = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/me', {
+        credentials: 'include'
+      })
+      if (!res.ok) {
+        setCurrentUser(null)
+        setIsAdmin(false)
+      } else {
+        const { user } = await res.json()
+        setCurrentUser(user)
+        setIsAdmin(!!user.is_admin)
       }
+    } catch (err) {
+      console.error('Auth check error', err)
+      setCurrentUser(null)
+      setIsAdmin(false)
+    } finally {
+      setLoading(false)
     }
-    setIsAdmin(storedIsAdmin);
-    setLoading(false);
-  };
+  }, [])
 
   useEffect(() => {
-    checkLoginStatus();
-  }, []);
+    checkLoginStatus()
+  }, [checkLoginStatus])
 
-  const signup = (userDataWithPassword) => {
-    // In a real app, password would be hashed here before saving.
-    // For localStorage, we save it as is for this demo.
-    const users = JSON.parse(localStorage.getItem('founderMatchUsers') || '[]');
-    users.push(userDataWithPassword);
-    localStorage.setItem('founderMatchUsers', JSON.stringify(users));
+  // Call /api/auth/login, set state & redirect on success
+  const login = async (email, password) => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers:  { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body:     JSON.stringify({ email, password })
+      })
+      const data = await res.json()
 
-    const { password, ...userDataToStore } = userDataWithPassword; // Don't store password in active currentUser state
+      if (!res.ok) {
+        return { success: false, message: data.error || 'Login failed.' }
+      }
 
-    setCurrentUser(userDataToStore);
-    localStorage.setItem('currentUser', JSON.stringify(userDataToStore));
-    
-    const isAdminUser = userDataWithPassword.email === 'admin@foundermatch.com';
-    if (isAdminUser) {
-      setIsAdmin(true);
-      localStorage.setItem('isAdmin', 'true');
+      setCurrentUser(data.user)
+      setIsAdmin(!!data.user.is_admin)
+      navigate('/dashboard')
+      return { success: true }
+    } catch (err) {
+      console.error('Login error', err)
+      return { success: false, message: 'Network error.' }
+    } finally {
+      setLoading(false)
     }
-    return { success: true, isAdmin: isAdminUser };
-  };
-
-
-const login = async (email, password) => {
-  try {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setCurrentUser(data.user);
-      localStorage.setItem('currentUser', JSON.stringify(data.user));
-      // Set admin if needed
-      const isAdminUser = data.user.email === 'admin@foundermatch.com';
-      setIsAdmin(isAdminUser);
-      localStorage.setItem('isAdmin', isAdminUser ? 'true' : 'false');
-      return { success: true, isAdmin: isAdminUser };
-    } else {
-      return { success: false, message: data.error || 'Login failed.' };
-    }
-  } catch (err) {
-    return { success: false, message: 'Network error.' };
   }
-};
 
-  const logout = () => {
-    setCurrentUser(null);
-    setIsAdmin(false);
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('isAdmin');
-    navigate('/');
-  };
-  
-  const checkAdmin = () => {
-    // This check can remain as is, or rely on isAdmin state which is set during login/signup
-    return isAdmin || (currentUser && currentUser.email === 'admin@foundermatch.com');
-  };
-
+  // Call /api/auth/logout, clear state & redirect
+  const logout = async () => {
+    setLoading(true)
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      })
+    } catch (err) {
+      console.error('Logout error', err)
+    } finally {
+      setCurrentUser(null)
+      setIsAdmin(false)
+      setLoading(false)
+      navigate('/')
+    }
+  }
 
   return (
-    <AuthContext.Provider value={{ currentUser, isAdmin, login, logout, signup, loading, checkAdmin, checkLoginStatus }}>
+    <AuthContext.Provider
+      value={{
+        currentUser,
+        isAdmin,
+        loading,
+        login,
+        logout,
+        checkLoginStatus
+      }}
+    >
+      {/* don’t render routes until we know whether we’re logged in */}
       {!loading && children}
     </AuthContext.Provider>
-  );
-};
+  )
+}
 
-export const useAuth = () => useContext(AuthContext);
-
-export default AuthContext;
+export const useAuth = () => useContext(AuthContext)
+export default AuthContext

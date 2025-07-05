@@ -8,12 +8,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { Users, ArrowLeft, CheckCircle, KeyRound, Eye, EyeOff } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
 
 const SignupPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signup } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
