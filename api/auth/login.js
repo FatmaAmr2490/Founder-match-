@@ -3,6 +3,8 @@ import supabase from '../lib/supabase.js'
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken'
 import { serialize } from 'cookie';
+import { issueAuthToken } from '../lib/session.js'
+
 
 
 export default async function handler(req, res) {
@@ -39,31 +41,9 @@ export default async function handler(req, res) {
   }
   
   // 3. sign JWT
-  if (!process.env.JWT_SECRET) {
-    throw new Error('Missing JWT_SECRET')
-  }
 
-  let token
-  try {
-    token = jwt.sign(
-      { sub: user.id, email: user.email, isAdmin: user.is_admin },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
-    )
-  } catch (err) {
-    console.error('JWT error:', err)
-    return res.status(500).json({ error: 'Could not generate token.' })
-  }
+  issueAuthToken(res, user)
 
-  // set HttpOnly cookie
-  const cookie = serialize('auth_token', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: 60 * 60,
-    path: '/'
-  })
-  res.setHeader('Set-Cookie', cookie)
   // success!
   return res.status(200).json({ user })
 
