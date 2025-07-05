@@ -1,6 +1,13 @@
 import supabase from '../lib/supabase.js';
 import bcrypt from 'bcryptjs';
 
+
+// This API endpoint handles user registration
+// it hashes the password and stores user details in the database
+// required fields: name, email, password, skills
+// optional fields: university, interests, availability, bio, city, country
+
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
