@@ -55,7 +55,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Could not generate token.' })
   }
 
-  // 4a. as HttpOnly cookie
+  // set HttpOnly cookie
   const cookie = serialize('auth_token', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

@@ -7,6 +7,7 @@ import React, {
   useContext
 } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Loader2 } from 'lucide-react'
 
 const AuthContext = createContext({
   currentUser: null,
@@ -109,7 +110,13 @@ export const AuthProvider = ({ children }) => {
       }}
     >
       {/* don’t render routes until we know whether we’re logged in */}
-      {!loading && children}
+      {loading ? (
+        <div className="flex min-h-screen items-center justify-center bg-gray-50">
+          <Loader2 className="animate-spin h-12 w-12 text-red-500" />
+        </div>
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   )
 }
