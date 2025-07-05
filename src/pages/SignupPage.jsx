@@ -18,11 +18,15 @@ const SignupPage = () => {
     name: '',
     email: '',
     password: '',
+    username: '',
     university: '',
     skills: '',
     interests: '',
     availability: '',
-    bio: ''
+    bio: '',
+    city: '',
+    country: '',
+    is_admin: false
   });
   const [showPassword, setShowPassword] = useState(false);
 
@@ -34,9 +38,8 @@ const SignupPage = () => {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
     if (!formData.name || !formData.email || !formData.password || !formData.skills) {
       toast({
         title: "Missing Information",
@@ -45,7 +48,6 @@ const SignupPage = () => {
       });
       return;
     }
-
     if (formData.password.length < 6) {
       toast({
         title: "Password Too Short",
@@ -55,25 +57,33 @@ const SignupPage = () => {
       return;
     }
 
-    const { success, isAdmin } = signup(formData);
-
-    if (success) {
-      toast({
-        title: "Profile Created!",
-        description: "Welcome to FounderMatch! Let's find your co-founder.",
+    // Send signup request to API
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
       });
-
-      setTimeout(() => {
-        if (isAdmin) {
-          navigate('/admin');
-        } else {
+      const data = await res.json();
+      if (res.ok) {
+        toast({
+          title: "Profile Created!",
+          description: "Welcome to FounderMatch! Let's find your co-founder.",
+        });
+        setTimeout(() => {
           navigate('/dashboard');
-        }
-      }, 1500);
-    } else {
+        }, 1500);
+      } else {
+        toast({
+          title: "Signup Failed",
+          description: data.error || "Could not create your profile. Please try again.",
+          variant: "destructive"
+        });
+      }
+    } catch (err) {
       toast({
         title: "Signup Failed",
-        description: "Could not create your profile. Please try again.",
+        description: "Network error. Please try again.",
         variant: "destructive"
       });
     }
@@ -177,6 +187,20 @@ const SignupPage = () => {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="username" className="text-sm font-semibold">
+                    Username (optional)
+                  </Label>
+                  <Input
+                    id="username"
+                    name="username"
+                    value={formData.username}
+                    onChange={handleInputChange}
+                    placeholder="Choose a unique username"
+                    className="h-12 border-2 focus:border-red-500"
+                  />
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="university" className="text-sm font-semibold">
                     University/Education
                   </Label>
@@ -246,6 +270,37 @@ const SignupPage = () => {
                     className="min-h-[120px] border-2 focus:border-red-500"
                   />
                 </div>
+
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="city" className="text-sm font-semibold">
+                      City (optional)
+                    </Label>
+                    <Input
+                      id="city"
+                      name="city"
+                      value={formData.city}
+                      onChange={handleInputChange}
+                      placeholder="e.g., San Francisco"
+                      className="h-12 border-2 focus:border-red-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="country" className="text-sm font-semibold">
+                      Country (optional)
+                    </Label>
+                    <Input
+                      id="country"
+                      name="country"
+                      value={formData.country}
+                      onChange={handleInputChange}
+                      placeholder="e.g., USA"
+                      className="h-12 border-2 focus:border-red-500"
+                    />
+                  </div>
+                </div>
+
+
 
                 <motion.div
                   whileHover={{ scale: 1.02 }}

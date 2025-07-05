@@ -1,5 +1,6 @@
 // api/auth/login.js
 import supabase from '../lib/supabase.js'
+import bcrypt from 'bcryptjs';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -12,25 +13,28 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Must include email & password strings.' })
   }
 
-  // --- use maybeSingle() here ---
-  const { data, error } = await supabase
+  // 1. Fetch user by email
+  const { data: user, error } = await supabase
     .from('users')
     .select('*')
     .eq('email', email)
-    .eq('password_hash', password)
-    .maybeSingle()
+    .maybeSingle();
 
-  // real connection / query error?
   if (error) {
     console.error('❌ Supabase error:', error)
     return res.status(500).json({ error: 'Database error.' })
   }
 
-  // no rows => wrong creds
-  if (!data) {
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid email or password.' })
+  }
+
+  // 2. Compare password with hash
+  const isMatch = await bcrypt.compare(password, user.password_hash);
+  if (!isMatch) {
     return res.status(401).json({ error: 'Invalid email or password.' })
   }
 
   // success!
-  return res.status(200).json({ user: data })
+  return res.status(200).json({ user })
 }
