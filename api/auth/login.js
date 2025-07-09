@@ -1,8 +1,6 @@
 // api/auth/login.js
 import supabase from '../lib/supabase.js'
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken'
-import { serialize } from 'cookie';
 import { issueAuthToken } from '../lib/session.js'
 
 

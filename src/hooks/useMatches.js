@@ -2,20 +2,18 @@
 import useSWR from 'swr'
 import { fetchMatches } from '@/services/matchService'
 
-/**
- * Hook to fetch your top K matches for a given user.
- * Uses SWR for caching/loading/error states.
- */
-export function useMatches(userId, k = 10) {
+export function useMatches(userId, k = 6) {
   const { data, error } = useSWR(
-    // only fetch if we have a userId
-    userId ? ['matches', userId, k] : null,
-    () => fetchMatches(userId, k)
+    () => userId ? `/api/match/match?user_id=${userId}&k=${k}` : null,
+    url => fetch(url, { credentials: 'include' }).then(r => {
+      if (!r.ok) throw new Error('Could not load matches')
+      return r.json()
+    })
   )
 
   return {
-    matches: data,
-    isLoading: !error && !data,
-    isError:   !!error
+    matches:     data || [],
+    isLoading:   !error && !data,
+    isError:     !!error
   }
 }

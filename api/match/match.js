@@ -1,33 +1,34 @@
+// File: api/match.js
 import supabase from '../lib/supabase.js'
+import { withAuth } from '..//lib/secure.js'
 
-export default async function handler(req, res) {
-  // Only GET requests allowed
+// 1) Write your handler just as a plain function, assuming req.user is set
+async function handler(req, res) {
+  // 2) Only allow GET
   if (req.method !== 'GET') {
+    res.setHeader('Allow', ['GET'])
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const userId = parseInt(req.query.user_id, 10)
+  // 3) `withAuth` guarantees req.user exists and is the JWT payload
+  const userId = req.user.sub   // <-- enforced, no more query param impersonation
   const limitK = parseInt(req.query.k || '10', 10)
-
-  // Validate query params
-  if (!userId || Number.isNaN(limitK)) {
-    return res.status(400).json({ error: 'Missing or invalid user_id/k' })
+  if (Number.isNaN(limitK) || limitK < 4 || limitK > 15) {
+    return res.status(400).json({ error: 'Invalid limit "k"' })
   }
 
   try {
-    // Call the stored RPC match_users(cur_user_id, limit_k)
+    // 4) Call your stored procedure
     const { data, error } = await supabase
       .rpc('match_users', { cur_user_id: userId, limit_k: limitK })
 
     if (error) throw error
-
-    // Returns an array of { user_id, final_score, vec_sim, ind_jaccard, skill_jaccard }
-    res.status(200).json(data)
-  } catch (e) {
-    console.error('match error:', e)
-    res.status(500).json({ error: e.message || 'Internal server error' })
+    return res.status(200).json(data)
+  } catch (err) {
+    console.error('match error:', err)
+    return res.status(500).json({ error: err.message || 'Internal server error' })
   }
 }
 
-
-
+// 5) Export the wrapped function
+export default withAuth(handler)

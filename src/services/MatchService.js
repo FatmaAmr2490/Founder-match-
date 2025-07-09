@@ -1,9 +1,6 @@
 // src/services/matchService.js
-export async function fetchMatches(userId, k = 10) {
-  const res = await fetch(`/api/match/match?user_id=${userId}&k=${k}`)
-  if (!res.ok) { 
-    console.log('error doing sth');
-    throw new Error('Failed to fetch matches');
-  }
+export async function fetchMatches(userId, k = 6) {
+  const res = await fetch(`/api/match?user_id=${userId}&k=${k}`, { credentials: 'include' })
+  if (!res.ok) throw new Error(`fetchMatches failed: ${res.status}`)
   return res.json()
 }

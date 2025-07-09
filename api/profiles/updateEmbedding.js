@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import keywordExtractor  from 'keyword-extractor'
 import supabase from '../lib/supabase.js'
 import { InferenceClient } from '@huggingface/inference'
+import {withAuth} from '@/lib/secure'
 
 
 console.log('HF token:', typeof process.env.HUGGINGFACE_API_TOKEN, process.env.HUGGINGFACE_API_TOKEN)
@@ -11,7 +12,7 @@ console.log('HF token:', typeof process.env.HUGGINGFACE_API_TOKEN, process.env.H
    process.env.HUGGINGFACE_API_TOKEN
  )
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   // Only POST requests allowed
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -62,4 +63,4 @@ export default async function handler(req, res) {
   }
 }
 
-
+export default withAuth(handler)
