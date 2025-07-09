@@ -24,3 +24,6 @@ yarn-debug.log*
 .DS_Store
 Thumbs.db
 .vercel
+
+
+databaseCreationFile.sql
