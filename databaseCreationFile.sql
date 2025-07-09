@@ -174,3 +174,88 @@ SELECT
   u.created_at,
   u.updated_at
 FROM users u;
+
+
+
+
+-- now we go to the matching commands done on the database:
+
+CREATE EXTENSION IF NOT EXISTS vector;
+
+ALTER TABLE public.users
+  ADD COLUMN idea_embedding vector(768);
+
+  ALTER TABLE public.users
+  ADD COLUMN keyphrases text[];
+
+-- 1d. Build an IVF-Flat index for fast ANN
+CREATE INDEX ON public.users
+  USING ivfflat (idea_embedding vector_cosine_ops)
+  WITH (lists = 64);
+  
+
+
+
+-- ANN matching query
+-- This query finds the top K users similar to the current user based on their idea embeddings,
+-- industry and skill Jaccard similarity, and combines these scores into a final ranking.
+
+  
+WITH
+  me AS (
+    SELECT idea_embedding FROM public.users WHERE id = cur_user_id
+  ),
+  ann AS (
+    SELECT u.id,
+           1 - (u.idea_embedding <#> me.idea_embedding) AS vec_sim
+    FROM public.users u, me
+    WHERE u.id <> cur_user_id
+    ORDER BY u.idea_embedding <#> me.idea_embedding
+    LIMIT 100
+  ),
+  io AS (
+    SELECT
+      a.id AS user_id,
+      COUNT(ui1.industry_id)::float
+        / GREATEST(
+            (SELECT COUNT(*) FROM user_industries WHERE user_id = a.id)
+            + (SELECT COUNT(*) FROM user_industries WHERE user_id = cur_user_id)
+            - COUNT(ui1.industry_id)
+          , 1) AS ind_jaccard
+    FROM ann a
+    JOIN user_industries ui1 ON ui1.user_id = a.id
+    JOIN user_industries ui2
+      ON ui2.user_id = cur_user_id
+     AND ui2.industry_id = ui1.industry_id
+    GROUP BY a.id
+  ),
+  so AS (
+    SELECT
+      a.id AS user_id,
+      COUNT(us1.skill_id)::float
+        / GREATEST(
+            (SELECT COUNT(*) FROM user_skills WHERE user_id = a.id)
+            + (SELECT COUNT(*) FROM user_skills WHERE user_id = cur_user_id)
+            - COUNT(us1.skill_id)
+          , 1) AS skill_jaccard
+    FROM ann a
+    JOIN user_skills us1 ON us1.user_id = a.id
+    JOIN user_skills us2
+      ON us2.user_id = cur_user_id
+     AND us2.skill_id = us1.skill_id
+    GROUP BY a.id
+  )
+SELECT
+  a.id            AS user_id,
+  (0.5*a.vec_sim
+   + 0.25*COALESCE(io.ind_jaccard,0)
+   + 0.25*COALESCE(so.skill_jaccard,0)
+  ) AS final_score,
+  a.vec_sim,
+  COALESCE(io.ind_jaccard,0),
+  COALESCE(so.skill_jaccard,0)
+FROM ann a
+LEFT JOIN io ON io.user_id = a.id
+LEFT JOIN so ON so.user_id = a.id
+ORDER BY final_score DESC
+LIMIT limit_k;

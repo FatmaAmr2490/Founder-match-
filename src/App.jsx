@@ -17,6 +17,7 @@ import AdminPage        from '@/pages/AdminPage'
 import ChatPage         from '@/pages/ChatPage'
 import PrivacyPolicyPage    from '@/pages/PrivacyPolicyPage'
 import TermsOfServicePage   from '@/pages/TermsOfServicePage'
+import MatchesPage      from '@/pages/MatchesPage'
 
 import AuthContext, { AuthProvider } from '@/contexts/AuthContext'
 
@@ -78,6 +79,15 @@ function AppContent() {
           element={
             <ProtectedRoute adminOnly>
               <AdminPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/matches"
+          element={
+            <ProtectedRoute>
+              <MatchesPage />
             </ProtectedRoute>
           }
         />

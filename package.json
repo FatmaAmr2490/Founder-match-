@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@huggingface/inference": "^4.4.0",
     "@radix-ui/react-alert-dialog": "^1.0.5",
     "@radix-ui/react-avatar": "^1.0.3",
     "@radix-ui/react-checkbox": "^1.0.4",
@@ -28,11 +29,13 @@
     "framer-motion": "^10.16.4",
     "jsonwebtoken": "^9.0.2",
     "jwt-decode": "^4.0.0",
+    "keyword-extractor": "^0.0.28",
     "lucide-react": "^0.285.0",
     "postgres": "^3.4.7",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.16.0",
+    "swr": "^2.3.4",
     "tailwind-merge": "^1.14.0",
     "tailwindcss-animate": "^1.0.7"
   },
