@@ -8,15 +8,19 @@ export default function MatchList({ matches }) {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
       {matches.map(m => (
-        <Card key={m.user_id} className="p-4">
-          <h3 className="text-lg font-semibold">
+        <Card key={m.user_id} className="p-6">
+          <h3 className="text-xl font-bold">
             {m.first_name} {m.last_name}
           </h3>
-          <p className="text-sm text-gray-600">{m.city}, {m.country}</p>
-          <p className="mt-2 text-gray-800">{m.about}</p>
-          <div className="mt-3 text-xs text-gray-500">
+          <p className="text-sm text-gray-500">
+            {m.city}, {m.country}
+          </p>
+          <p className="mt-2 text-gray-800 line-clamp-3">
+            {m.about}
+          </p>
+          <div className="mt-4 text-sm text-gray-600">
             Score: {m.final_score.toFixed(3)}
           </div>
         </Card>

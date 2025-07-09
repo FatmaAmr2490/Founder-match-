@@ -259,3 +259,111 @@ LEFT JOIN io ON io.user_id = a.id
 LEFT JOIN so ON so.user_id = a.id
 ORDER BY final_score DESC
 LIMIT limit_k;
+
+
+
+
+-- function changed to return users data as well:
+
+-- Replace your existing match_users function with this version that returns user metadata:
+CREATE OR REPLACE FUNCTION public.match_users(
+  cur_user_id INT,
+  limit_k     INT DEFAULT 10
+)
+RETURNS TABLE(
+  user_id       INT,
+  first_name    TEXT,
+  last_name     TEXT,
+  about         TEXT,
+  city          TEXT,
+  country       TEXT,
+  vec_sim       FLOAT,
+  ind_jaccard   FLOAT,
+  skill_jaccard FLOAT,
+  final_score   FLOAT
+)
+LANGUAGE sql
+STABLE
+AS $$
+WITH
+  -- 1. Get the current user’s idea vector
+  me AS (
+    SELECT idea_embedding
+    FROM public.users
+    WHERE id = cur_user_id
+  ),
+
+  -- 2. ANN search: top-100 most similar by embedding
+  ann AS (
+    SELECT
+      u.id,
+      1 - (u.idea_embedding <#> me.idea_embedding) AS vec_sim
+    FROM public.users u, me
+    WHERE u.id <> cur_user_id
+    ORDER BY u.idea_embedding <#> me.idea_embedding
+    LIMIT 100
+  ),
+
+  -- 3. Industry Jaccard on that shortlist
+  io AS (
+    SELECT
+      a.id AS user_id,
+      COUNT(ui1.industry_id)::float
+      / GREATEST(
+          (SELECT COUNT(*) FROM public.user_industries WHERE user_id = a.id)
+          + (SELECT COUNT(*) FROM public.user_industries WHERE user_id = cur_user_id)
+          - COUNT(ui1.industry_id)
+        , 1
+        ) AS ind_jaccard
+    FROM ann a
+    JOIN public.user_industries ui1
+      ON ui1.user_id = a.id
+    JOIN public.user_industries ui2
+      ON ui2.user_id     = cur_user_id
+     AND ui2.industry_id = ui1.industry_id
+    GROUP BY a.id
+  ),
+
+  -- 4. Skill Jaccard on that shortlist
+  so AS (
+    SELECT
+      a.id AS user_id,
+      COUNT(us1.skill_id)::float
+      / GREATEST(
+          (SELECT COUNT(*) FROM public.user_skills WHERE user_id = a.id)
+          + (SELECT COUNT(*) FROM public.user_skills WHERE user_id = cur_user_id)
+          - COUNT(us1.skill_id)
+        , 1
+        ) AS skill_jaccard
+    FROM ann a
+    JOIN public.user_skills us1
+      ON us1.user_id = a.id
+    JOIN public.user_skills us2
+      ON us2.user_id   = cur_user_id
+     AND us2.skill_id  = us1.skill_id
+    GROUP BY a.id
+  )
+
+-- 5. Join back to users and compute final weighted score
+SELECT
+  u.id            AS user_id,
+  u.first_name,
+  u.last_name,
+  u.about,
+  u.city,
+  u.country,
+  a.vec_sim,
+  COALESCE(io.ind_jaccard,   0) AS ind_jaccard,
+  COALESCE(so.skill_jaccard, 0) AS skill_jaccard,
+  (
+    0.5 * a.vec_sim
+  + 0.25 * COALESCE(io.ind_jaccard,   0)
+  + 0.25 * COALESCE(so.skill_jaccard, 0)
+  )               AS final_score
+FROM ann a
+JOIN public.users       u  ON u.id = a.id
+LEFT JOIN io             ON io.user_id    = a.id
+LEFT JOIN so             ON so.user_id    = a.id
+ORDER BY final_score DESC
+LIMIT limit_k;
+$$;
