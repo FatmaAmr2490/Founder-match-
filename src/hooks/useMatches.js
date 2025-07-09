@@ -1,6 +1,5 @@
 // src/hooks/useMatches.js
 import useSWR from 'swr'
-import { fetchMatches } from '@/services/matchService'
 
 export function useMatches(userId, k = 6) {
   const { data, error } = useSWR(
