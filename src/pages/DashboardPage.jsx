@@ -13,6 +13,8 @@ import {
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { User as UserIcon } from 'lucide-react'  
+
 
 import { useAuth }    from '@/contexts/AuthContext'
 import { useMatches } from '@/hooks/useMatches'
@@ -88,6 +90,13 @@ export default function DashboardPage() {
           <span className="text-gray-600 hidden sm:inline">
             Welcome, {currentUser.first_name}!
           </span>
+           <Button
+              variant="outline"
+              onClick={() => navigate('/profile/edit')}
+            >
+              <UserIcon className="h-4 w-4 mr-0 sm:mr-2" />
+              <span className="hidden sm:inline">Edit Profile</span>
+            </Button>
           <Button variant="outline" onClick={logout}>
             <LogOut className="h-4 w-4 mr-2" />
             <span className="hidden sm:inline">Logout</span>
@@ -212,17 +221,9 @@ export default function DashboardPage() {
                           variant="outline"
                           size="sm"
                           className="flex-1"
-                          onClick={() => {/* open profile dialog */}}
+                          onClick={() => navigate(`/profile/${m.user_id}`)}
                         >
                           View Profile
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="flex-1 gradient-bg text-white"
-                          onClick={() => handleInitiateChat(m)}
-                        >
-                          <MessageCircle className="h-4 w-4 mr-1" />
-                          Message
                         </Button>
                       </div>
                     </CardContent>

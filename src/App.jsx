@@ -18,6 +18,9 @@ import ChatPage         from '@/pages/ChatPage'
 import PrivacyPolicyPage    from '@/pages/PrivacyPolicyPage'
 import TermsOfServicePage   from '@/pages/TermsOfServicePage'
 import MatchesPage      from '@/pages/MatchesPage'
+import UpdateProfilePage from '@/pages/UpdateProfilePage'
+import ViewProfilePage  from '@/pages/ViewProfilePage'
+
 
 import AuthContext, { AuthProvider } from '@/contexts/AuthContext'
 
@@ -92,6 +95,25 @@ function AppContent() {
           }
         />
 
+        <Route
+        path="/profile/edit"
+        element={
+          <ProtectedRoute>
+            <UpdateProfilePage/>
+          </ProtectedRoute>
+        }
+      />
+
+
+        <Route
+          path="/profile/:id"
+          element={
+            <ProtectedRoute>
+              <ViewProfilePage/>
+            </ProtectedRoute>
+          }
+        />
+        
         <Route path="/privacy-policy"   element={<PrivacyPolicyPage />} />
         <Route path="/terms-of-service" element={<TermsOfServicePage />} />
       </Routes>
