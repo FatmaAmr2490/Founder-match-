@@ -7,6 +7,7 @@ import {
   Navigate
 } from 'react-router-dom'
 
+import Navbar from './components/ui/Navbar'
 import { Toaster }      from '@/components/ui/toaster'
 import HelpCenter       from '@/components/ui/help-center'
 import LandingPage      from '@/pages/LandingPage'
@@ -20,6 +21,7 @@ import TermsOfServicePage   from '@/pages/TermsOfServicePage'
 import MatchesPage      from '@/pages/MatchesPage'
 import UpdateProfilePage from '@/pages/UpdateProfilePage'
 import ViewProfilePage  from '@/pages/ViewProfilePage'
+
 
 
 import AuthContext, { AuthProvider } from '@/contexts/AuthContext'
@@ -63,6 +65,7 @@ function AppContent() {
           path="/dashboard"
           element={
             <ProtectedRoute>
+              <Navbar />
               <DashboardPage />
             </ProtectedRoute>
           }
@@ -90,6 +93,7 @@ function AppContent() {
           path="/matches"
           element={
             <ProtectedRoute>
+              <Navbar/>
               <MatchesPage />
             </ProtectedRoute>
           }
@@ -99,7 +103,8 @@ function AppContent() {
         path="/profile/edit"
         element={
           <ProtectedRoute>
-            <UpdateProfilePage/>
+            <Navbar />
+            <UpdateProfilePage />
           </ProtectedRoute>
         }
       />
@@ -109,6 +114,7 @@ function AppContent() {
           path="/profile/:id"
           element={
             <ProtectedRoute>
+              <Navbar />
               <ViewProfilePage/>
             </ProtectedRoute>
           }

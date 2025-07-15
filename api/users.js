@@ -2,45 +2,60 @@
 import supabase from './lib/supabase.js'
 import { withAuth } from './lib/secure.js'
 
-async function handler(req, res) {
+export default withAuth(async function handler(req, res) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', ['GET'])
     return res.status(405).end()
   }
 
-  // you could allow public access, but here we require login:
   const { id } = req.query
+  const userId = parseInt(id, 10)
+  if (!userId) return res.status(400).json({ error: 'Missing or invalid id' })
 
-   if (!id) {
-     return res.status(400).json({ error: 'Missing id query parameter' })
-   }
-
-   
-   const userId = parseInt(id, 10)
-   if (Number.isNaN(userId)) {
-     return res.status(400).json({ error: 'Invalid id' })
-   }
-
-  const { data: user, error } = await supabase
+  // 1) base user row:
+  const { data: user, error: userErr } = await supabase
     .from('users')
     .select(`
       id, first_name, last_name,
-      about, 
-      city, country,
-      facebook_url, instagram_url, linkedin_url, twitter_url
+      about,
+      facebook_url, instagram_url, linkedin_url, twitter_url,
+      city, country
     `)
-    .eq('id', id)
+    .eq('id', userId)
     .maybeSingle()
-
-  if (error) {
-    console.error('users/[id] error:', error)
-    return res.status(500).json({ error: error.message })
-  }
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' })
+  if (userErr || !user) {
+    console.error('user fetch error', userErr)
+    return res.status(userErr ? 500 : 404).json({ error: userErr?.message || 'Not found' })
   }
 
-  res.status(200).json({ user })
-}
+  // 2) skills list
+  const { data: skillRows, error: skillErr } = await supabase
+    .from('user_skills')
+    .select(`skill_id, skills(name)`)
+    .eq('user_id', userId)
+  if (skillErr) {
+    console.error('skills fetch error', skillErr)
+    return res.status(500).json({ error: skillErr.message })
+  }
+  const skills = skillRows.map(r => r.skills.name)
 
-export default withAuth(handler)
+  // 3) education list
+  const { data: eduRows, error: eduErr } = await supabase
+    .from('user_educations')
+    .select(`institution`)
+    .eq('user_id', userId)
+  if (eduErr) {
+    console.error('educations fetch error', eduErr)
+    return res.status(500).json({ error: eduErr.message })
+  }
+  const education = eduRows.map(r => r.institution)
+
+  // 4) return the merged object
+  return res.status(200).json({
+    user: {
+      ...user,
+      skills,
+      education
+    }
+  })
+})

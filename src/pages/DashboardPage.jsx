@@ -70,39 +70,7 @@ export default function DashboardPage() {
   // Render the dashboard
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* ─────────── Header ─────────── */}
-      <motion.header
-        className="px-4 lg:px-6 h-16 flex items-center bg-white border-b border-gray-100 sticky top-0 z-20"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <Button variant="ghost" onClick={() => navigate('/')}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Home
-        </Button>
-
-        <div className="flex-1 text-center lg:text-left">
-          <span className="text-2xl font-bold gradient-text">FounderMatch</span>
-        </div>
-
-        <div className="flex items-center gap-2 sm:gap-4">
-          <span className="text-gray-600 hidden sm:inline">
-            Welcome, {currentUser.first_name}!
-          </span>
-           <Button
-              variant="outline"
-              onClick={() => navigate('/profile/edit')}
-            >
-              <UserIcon className="h-4 w-4 mr-0 sm:mr-2" />
-              <span className="hidden sm:inline">Edit Profile</span>
-            </Button>
-          <Button variant="outline" onClick={logout}>
-            <LogOut className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Logout</span>
-          </Button>
-        </div>
-      </motion.header>
+      
 
       <div className="container mx-auto px-4 py-8">
         {/* ─────────── Profile Summary ─────────── */}
@@ -220,7 +188,7 @@ export default function DashboardPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="flex-1"
+                          className="border-red-600 text-red-600 hover:bg-red-600 hover:text-white flex-1"
                           onClick={() => navigate(`/profile/${m.user_id}`)}
                         >
                           View Profile
