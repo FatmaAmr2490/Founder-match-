@@ -18,17 +18,17 @@ async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const { user_id, about } = req.body
+  const { user_id, idea_description  } = req.body
 
   // Validate input
-  if (typeof user_id !== 'number' || typeof about !== 'string') {
-    return res.status(400).json({ error: 'Missing or invalid user_id/about' })
+  if (typeof user_id !== 'number' || typeof idea_description !== 'string') {
+    return res.status(400).json({ error: 'Missing or invalid user_id/idea_description' })
   }
 
   try {
-    // 1) Extract keyphrases from the 'about' text
+    // 1) Extract keyphrases from the 'idea_description' text
     //    - removes duplicates, numbers, lowercases everything
-    const keyphrases = keywordExtractor.extract(about, {
+    const keyphrases = keywordExtractor.extract(idea_description, {
       language: 'english',
       remove_digits: true,
       return_changed_case: true,
@@ -38,7 +38,7 @@ async function handler(req, res) {
     // 2) Call Hugging Face Inference API to get a 768-dim embedding
     const hfResult = await hf.featureExtraction({
       model: 'sentence-transformers/all-mpnet-base-v2',
-      inputs: about
+      inputs: idea_description
     })
     // featureExtraction returns an array of arrays; we take the first row
     const vector = Array.isArray(hfResult[0]) ? hfResult[0] : hfResult
@@ -47,7 +47,7 @@ async function handler(req, res) {
     const { error } = await supabase
       .from('users')
       .update({
-        about,
+        idea_description,
         keyphrases,
         idea_embedding: vector
       })

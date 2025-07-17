@@ -16,7 +16,8 @@ export default function UpdateProfilePage() {
   const [form, setForm] = useState({
     first_name:   '',
     last_name:    '',
-    about:        '',
+    idea_description:        '',
+    bio:          '',
     facebook_url: '',
     instagram_url:'',
     linkedin_url: '',
@@ -30,7 +31,8 @@ export default function UpdateProfilePage() {
       setForm({
         first_name:   currentUser.first_name || '',
         last_name:    currentUser.last_name  || '',
-        about:        currentUser.about      || '',
+        idea_description:        currentUser.idea_description      || '',
+        bio:          currentUser.bio      || '',
         facebook_url: currentUser.facebook_url||'',
         instagram_url:currentUser.instagram_url||'',
         linkedin_url: currentUser.linkedin_url||'',
@@ -79,8 +81,12 @@ export default function UpdateProfilePage() {
           <Input name="last_name" value={form.last_name} onChange={handleChange}/>
         </div>
         <div>
-          <Label>About / Bio</Label>
-          <Textarea name="about" value={form.about} onChange={handleChange}/>
+          <Label> Bio</Label>
+          <Textarea name="bio" value={form.bio} onChange={handleChange}/>
+        </div>
+        <div>
+          <Label> Idea Description</Label>
+          <Textarea name="idea_description" value={form.idea_description} onChange={handleChange}/>
         </div>
         <div>
           <Label>Facebook URL</Label>

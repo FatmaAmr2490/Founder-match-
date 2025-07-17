@@ -28,7 +28,7 @@ export default async function handler(req, res) {
   // 3. (Optional) fetch fresh user record from Supabase
   const { data: user, error } = await supabase
     .from('users')
-    .select('id, username, email, first_name, last_name, is_admin, city, country, about')
+    .select('id, username, email, first_name, last_name, is_admin, city, country, bio, idea_description')
     .eq('id', payload.sub)
     .maybeSingle()
 

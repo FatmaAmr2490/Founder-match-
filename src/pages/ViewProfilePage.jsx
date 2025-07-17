@@ -35,12 +35,20 @@ export default function ViewProfilePage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {user.about && (
-            <>
-              <h3 className="font-semibold">About</h3>
-              <p>{user.about}</p>
-            </>
-          )}
+            {user.bio && (
+              <>
+                <h3 className="font-semibold">Bio</h3>
+                <p>{user.bio}</p>
+              </>
+            )}
+
+             {user.idea_description && (
+              <>
+                <h3 className="font-semibold">Idea Description</h3>
+                <p>{user.idea_description}</p>
+              </>
+            )} 
+          
 
           {user.skills?.length > 0 && (
             <>

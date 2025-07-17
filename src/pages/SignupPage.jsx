@@ -264,7 +264,21 @@ const SignupPage = () => {
                     name="bio"
                     value={formData.bio}
                     onChange={handleInputChange}
-                    placeholder="Tell us about your entrepreneurial journey..."
+                    placeholder="Tell us about your journey so far..."
+                    className="min-h-[120px] border-2 focus:border-red-500"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="bio" className="text-sm font-semibold">
+                    Your Business idea
+                  </Label>
+                  <Textarea
+                    id="idea_description"
+                    name="idea_description"
+                    value={formData.idea_description}
+                    onChange={handleInputChange}
+                    placeholder="Tell us all about your hopefully groundbreaking idea..."
                     className="min-h-[120px] border-2 focus:border-red-500"
                   />
                 </div>

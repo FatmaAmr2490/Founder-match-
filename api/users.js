@@ -17,7 +17,8 @@ export default withAuth(async function handler(req, res) {
     .from('users')
     .select(`
       id, first_name, last_name,
-      about,
+      idea_description,
+      bio,
       facebook_url, instagram_url, linkedin_url, twitter_url,
       city, country
     `)

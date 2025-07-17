@@ -120,13 +120,22 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  {/* About (spans both columns) */}
-                  {currentUser.about && (
+                  {/* BIO (spans both columns) */}
+                  {currentUser.bio && (
                     <div className="flex items-start space-x-3 md:col-span-2">
                       <MessageCircle className="h-5 w-5 text-gray-500 mt-1" />
                       <div>
-                        <p className="text-sm text-gray-500">About</p>
-                        <p className="font-medium">{currentUser.about}</p>
+                        <p className="text-sm text-gray-500">BIO</p>
+                        <p className="font-medium">{currentUser.bio}</p>
+                      </div>
+                    </div>
+                  )}
+                  {currentUser.idea_description && (
+                    <div className="flex items-start space-x-3 md:col-span-2">
+                      <MessageCircle className="h-5 w-5 text-gray-500 mt-1" />
+                      <div>
+                        <p className="text-sm text-gray-500">Idea Description</p>
+                        <p className="font-medium">{currentUser.idea_description}</p>
                       </div>
                     </div>
                   )}
@@ -182,8 +191,9 @@ export default function DashboardPage() {
                         {m.city}, {m.country}
                       </p>
                       <p className="mt-2 text-gray-800 line-clamp-3">
-                        {m.about}
+                        {m.bio}
                       </p>
+
                       <div className="flex gap-2 pt-4">
                         <Button
                           variant="outline"

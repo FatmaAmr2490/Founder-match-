@@ -13,7 +13,8 @@ async function handler(req, res) {
   const {
     first_name,
     last_name,
-    about,
+    bio,
+    idea_description,
     facebook_url,
     instagram_url,
     linkedin_url,
@@ -30,7 +31,8 @@ async function handler(req, res) {
       .update({
         first_name,
         last_name,
-        about,
+        idea_description,
+        bio,
         facebook_url,
         instagram_url,
         linkedin_url,

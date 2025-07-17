@@ -19,7 +19,8 @@ export default async function handler(req, res) {
     skills,
     interests,
     availability,
-    bio,
+    bio, 
+    idea_description,
     city,
     country
   } = req.body || {}
@@ -50,7 +51,8 @@ export default async function handler(req, res) {
       password_hash,
       first_name,
       last_name,
-      about:        bio || null,
+      bio:        bio || null,
+      idea_description: idea_description || null,
       availability: availability || null,
       city:         city || null,
       country:      country || null

@@ -18,7 +18,10 @@ export default function MatchList({ matches }) {
             {m.city}, {m.country}
           </p>
           <p className="mt-2 text-gray-800 line-clamp-3">
-            {m.about}
+            {m.bio}
+          </p>
+          <p className="mt-2 text-gray-800 line-clamp-3">
+            {m.idea_description}
           </p>
           <div className="mt-4 text-sm text-gray-600">
             Score: {m.final_score.toFixed(3)}
