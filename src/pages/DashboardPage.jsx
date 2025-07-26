@@ -67,6 +67,25 @@ export default function DashboardPage() {
     return null
   }
 
+ function matchBackground(pct) {
+  // “gamma” >1 makes the curve steeper at the low end
+  const gamma = 2.0;
+
+  // normalize, gamma-correct, then remap into [0..120]°
+  const scaled = Math.pow(pct / 100, gamma);
+  const hue    = scaled * 120;   // 0=red → 120=green
+
+  // tweak these if you like
+  const saturation = 70;         
+  const lightness  = 80 - (pct / 100) * 30;
+
+  return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+}
+
+  function matchTextColor(pct) {
+    return pct > 50 ? '#222' : '#fff';
+  }
+
   // Render the dashboard
   return (
     <div className="min-h-screen bg-gray-50">
@@ -181,9 +200,21 @@ export default function DashboardPage() {
                         <CardTitle className="text-xl">
                           {m.first_name} {m.last_name}
                         </CardTitle>
-                        <div className="bg-red-100 text-red-600 px-2 py-1 rounded-full text-sm font-semibold">
-                           Match: {Math.floor(m.final_score * 100)}%
+                       {(() => {
+                      const pct = Math.floor(m.final_score * 100);
+                      return (
+                        <div
+                          className="px-2 py-1 rounded-full text-sm font-semibold"
+                          style={{
+                            backgroundColor: matchBackground(pct),
+                            color:           matchTextColor(pct),
+                          }}
+                        >
+                          Match: {pct}%
                         </div>
+                      );
+                    })()}
+
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-3">
