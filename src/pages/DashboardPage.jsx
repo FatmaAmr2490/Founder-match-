@@ -182,7 +182,7 @@ export default function DashboardPage() {
                           {m.first_name} {m.last_name}
                         </CardTitle>
                         <div className="bg-red-100 text-red-600 px-2 py-1 rounded-full text-sm font-semibold">
-                          {(m.final_score * 100).toFixed(0)}%
+                           Match: {Math.floor(m.final_score * 100)}%
                         </div>
                       </div>
                     </CardHeader>
