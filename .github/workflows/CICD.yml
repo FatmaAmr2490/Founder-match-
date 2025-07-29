@@ -49,3 +49,4 @@ jobs:
           npm install --production
           pm2 reload ecosystem.config.js
           sudo systemctl reload nginx
+# edit to run the pipeline
