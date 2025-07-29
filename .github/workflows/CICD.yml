@@ -22,6 +22,14 @@ jobs:
         cd .
         npm install
         npm run build
+    - name: List files after build
+      run: |
+        echo "=== root ==="
+        ls -lA .
+        echo "=== dist dir ==="
+        ls -lA dist || true
+        echo "=== api dir ==="
+        ls -lA api  || true
 
     - name: Copy dist and server to VM
       uses: appleboy/scp-action@master
