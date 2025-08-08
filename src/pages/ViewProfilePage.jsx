@@ -26,56 +26,88 @@ export default function ViewProfilePage() {
   if (!user) return <p>Loading…</p>
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <Users className="mr-2 h-6 w-6 text-red-600"/>
-            {user.first_name} {user.last_name}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-            {user.bio && (
-              <>
-                <h3 className="font-semibold">Bio</h3>
-                <p>{user.bio}</p>
-              </>
-            )}
+    <div className="max-w-2xl mx-auto p-6 space-y-6"> 
+       import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Users, Facebook, Instagram, Linkedin, Twitter } from "lucide-react";
 
-             {user.idea_description && (
-              <>
-                <h3 className="font-semibold">Idea Description</h3>
-                <p>{user.idea_description}</p>
-              </>
-            )} 
-          
+export default function UserProfileCard({ user }) {
+  return (
+    <Card className="max-w-md mx-auto shadow-lg rounded-2xl">
+      <CardHeader>
+        <CardTitle className="flex items-center">
+          <Users className="mr-2 h-6 w-6 text-red-600" />
+          {user.first_name} {user.last_name}
+        </CardTitle>
+      </CardHeader>
 
-          {user.skills?.length > 0 && (
-            <>
-              <h3 className="font-semibold">Skills</h3>
-              <ul className="list-disc pl-5">
-                {user.skills.map(s => <li key={s}>{s}</li>)}
-              </ul>
-            </>
-          )}
+      <CardContent className="space-y-4">
+        {/* Bio and Idea Description */}
+        {[
+          { label: "Bio", value: user.bio },
+          { label: "Idea Description", value: user.idea_description }
+        ]
+          .filter(section => section.value)
+          .map(({ label, value }) => (
+            <div key={label}>
+              <h3 className="font-semibold">{label}</h3>
+              <p>{value}</p>
+            </div>
+          ))}
 
-          {user.education?.length > 0 && (
-            <>
-              <h3 className="font-semibold">Education</h3>
-              <ul className="list-disc pl-5">
-                {user.education.map(inst => <li key={inst}>{inst}</li>)}
-              </ul>
-            </>
-          )}
-
-          <div className="space-y-1">
-            {user.facebook_url  && <a href={user.facebook_url} target="_blank" rel="noreferrer">Facebook</a>}
-            {user.instagram_url && <a href={user.instagram_url} target="_blank" rel="noreferrer">Instagram</a>}
-            {user.linkedin_url  && <a href={user.linkedin_url} target="_blank" rel="noreferrer">LinkedIn</a>}
-            {user.twitter_url   && <a href={user.twitter_url} target="_blank" rel="noreferrer">Twitter</a>}
+        {/* Skills as tags */}
+        {Array.isArray(user.skills) && user.skills.length > 0 && (
+          <div>
+            <h3 className="font-semibold">Skills</h3>
+            <div className="flex flex-wrap gap-2">
+              {user.skills.map(skill => (
+                <span
+                  key={skill}
+                  className="px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded-full"
+                >
+                  {skill}
+                </span>
+              ))}
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        )}
+
+        {/* Education */}
+        {Array.isArray(user.education) && user.education.length > 0 && (
+          <div>
+            <h3 className="font-semibold">Education</h3>
+            <ul className="list-disc pl-5">
+              {user.education.map(inst => (
+                <li key={inst}>{inst}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Social Links with icons */}
+        <div className="flex gap-4 pt-2">
+          {[
+            { url: user.facebook_url, icon: Facebook },
+            { url: user.instagram_url, icon: Instagram },
+            { url: user.linkedin_url, icon: Linkedin },
+            { url: user.twitter_url, icon: Twitter }
+          ]
+            .filter(link => link.url)
+            .map(({ url, icon: Icon }, index) => (
+              <a
+                key={index}
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-600 hover:text-blue-800"
+              >
+                <Icon className="h-5 w-5" />
+              </a>
+            ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
     </div>
   )
 }
